@@ -76,7 +76,7 @@ function createWindows() {
     }
   });
   overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+  overlayWindow.setAlwaysOnTop(true, 'pop-up-menu');
   overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
   overlayWindow.once('ready-to-show', () => overlayWindow.showInactive());
 }
