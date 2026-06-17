@@ -1,4 +1,5 @@
 ﻿const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 const http = require('http');
 
 // Guard Electron-only requires so plain-Node test imports of this file don't crash

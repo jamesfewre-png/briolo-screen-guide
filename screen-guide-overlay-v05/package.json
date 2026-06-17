@@ -11,11 +11,18 @@
     "test:workflow": "node --test tests/workflow-engine.test.js",
     "test:tracker": "node --test tests/tracker.test.js"
   },
-  "keywords": ["electron", "ai", "screen-overlay", "dom-aware", "guided-onboarding"],
+  "keywords": [
+    "electron",
+    "ai",
+    "screen-overlay",
+    "dom-aware",
+    "guided-onboarding"
+  ],
   "author": "AI Flow Systems",
   "license": "UNLICENSED",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.40.0"
+    "@anthropic-ai/sdk": "^0.40.0",
+    "dotenv": "^17.4.2"
   },
   "devDependencies": {
     "electron": "^31.7.7"
