@@ -178,7 +178,7 @@ async function captureAndAnalyze() {
     const frameDataUrl = captureFrame();
     const result = await window.screenGuide.analyzeFrame({
       task: taskEl.value.trim(), frameDataUrl,
-      captureMeta: { videoWidth: video.videoWidth, videoHeight: video.videoHeight }
+      captureMeta: { videoWidth: video.videoWidth, videoHeight: video.videoHeight, frameWidth: captureCanvas.width, frameHeight: captureCanvas.height }
     });
     debugContent.textContent = JSON.stringify(result, null, 2);
     const confidence = Number(result?.confidence || 0);

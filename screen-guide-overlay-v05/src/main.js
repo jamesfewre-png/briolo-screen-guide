@@ -216,6 +216,18 @@ function registerIpcHandlers() {
       previousGuidance: latestGuidance
     });
 
+    // Scale vision-highlight coords from captured frame space → screen CSS pixel space
+    if (result.overlay?.type === 'vision-highlight' && result.overlay.highlight) {
+      const { frameWidth, frameHeight } = payload.captureMeta || {};
+      if (frameWidth && frameHeight) {
+        const { width: sw, height: sh } = screen.getPrimaryDisplay().bounds;
+        const sx = sw / frameWidth;
+        const sy = sh / frameHeight;
+        const h = result.overlay.highlight;
+        result.overlay.highlight = { x: Math.round(h.x * sx), y: Math.round(h.y * sy), w: Math.round(h.w * sx), h: Math.round(h.h * sy) };
+      }
+    }
+
     if (result.status === 'wrong-page') {
       const step = engine.getCurrentStep();
       const targetUrl = step?.targetUrl || null;
