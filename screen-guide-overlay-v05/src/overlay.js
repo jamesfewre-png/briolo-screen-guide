@@ -3,6 +3,25 @@ const ctx = canvas.getContext('2d');
 let current = { type: 'clear' };
 let pulseStart = Date.now();
 
+const navBtn = document.getElementById('navBtn');
+const navLink = document.getElementById('navLink');
+let navDismissTimer = null;
+
+function showNavigate(url, label) {
+  navLink.textContent = `Open ${label || 'page'} →`;
+  navLink.onclick = () => { window.overlayBridge.openUrl(url); hideNavigate(); };
+  navBtn.style.display = 'block';
+  if (navDismissTimer) clearTimeout(navDismissTimer);
+  navDismissTimer = setTimeout(hideNavigate, 10000);
+}
+
+function hideNavigate() {
+  if (navBtn.style.display === 'none') return;
+  navBtn.style.display = 'none';
+  if (navDismissTimer) { clearTimeout(navDismissTimer); navDismissTimer = null; }
+  window.overlayBridge.notifyNavigated();
+}
+
 function resize() {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(window.innerWidth * dpr);
@@ -19,6 +38,7 @@ resize();
 window.overlayBridge.onUpdate((guidance) => {
   current = guidance || { type: 'clear' };
   pulseStart = Date.now();
+  if (current.type !== 'navigate') hideNavigate();
   draw();
 });
 
@@ -33,6 +53,12 @@ function draw() {
   const type = current.type;
   if (type === 'message') {
     drawMessage(current.message || 'Checking screen…', current.confidence);
+    return;
+  }
+
+  if (type === 'navigate') {
+    drawMessage(current.message || 'Wrong page', current.confidence);
+    if (current.url) showNavigate(current.url, current.urlLabel || 'page');
     return;
   }
 

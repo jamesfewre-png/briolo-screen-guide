@@ -161,9 +161,12 @@ function startBridgeServer() {
           const engineResult = engine.updatePageState(latestPageState);
           if (engineResult && engineResult.status === 'wrong-page') {
             const step = engineResult.step;
-            sendOverlay({ type: 'message', message: 'Wrong page — open the correct one from the guide panel', confidence: 0.99 });
+            const targetUrl = step.targetUrl || null;
+            const urlLabel = (step.id || '').replace(/-/g, ' ');
+            sendOverlay({ type: 'navigate', message: 'Wrong page', url: targetUrl, urlLabel, confidence: 0.99 });
+            if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setIgnoreMouseEvents(false);
             if (controlWindow && !controlWindow.isDestroyed()) {
-              controlWindow.webContents.send('guide:navigate', { url: step.targetUrl || null, label: step.id });
+              controlWindow.webContents.send('guide:navigate', { url: targetUrl, label: step.id });
             }
           }
 
@@ -200,11 +203,15 @@ function registerIpcHandlers() {
 
     if (result.status === 'wrong-page') {
       const step = engine.getCurrentStep();
-      sendOverlay({ type: 'message', message: 'Wrong page', confidence: 0.99 });
-      if (controlWindow && !controlWindow.isDestroyed() && step?.targetUrl) {
-        controlWindow.webContents.send('guide:navigate', { url: step.targetUrl, label: step.id });
+      const targetUrl = step?.targetUrl || null;
+      const urlLabel = (step?.id || '').replace(/-/g, ' ');
+      sendOverlay({ type: 'navigate', message: 'Wrong page', url: targetUrl, urlLabel, confidence: 0.99 });
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setIgnoreMouseEvents(false);
+      if (controlWindow && !controlWindow.isDestroyed() && targetUrl) {
+        controlWindow.webContents.send('guide:navigate', { url: targetUrl, label: step.id });
       }
     } else {
+      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setIgnoreMouseEvents(true, { forward: true });
       sendOverlay(result.overlay || result);
     }
 
@@ -263,6 +270,11 @@ function registerIpcHandlers() {
     if (shell && url && (url.startsWith('https://') || url.startsWith('http://'))) {
       await shell.openExternal(url);
     }
+    return { ok: true };
+  });
+
+  ipcMain.handle('guide:overlay-navigated', async () => {
+    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setIgnoreMouseEvents(true, { forward: true });
     return { ok: true };
   });
 }
