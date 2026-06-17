@@ -284,7 +284,12 @@ if (app) {
     app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindows(); });
   });
 
-  app.on('before-quit', () => { if (bridgeServer) bridgeServer.close(); tracker.stop(); });
+  app.on('before-quit', () => {
+    if (bridgeServer) bridgeServer.close();
+    tracker.stop();
+    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.destroy();
+    if (controlWindow && !controlWindow.isDestroyed()) controlWindow.destroy();
+  });
   app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 }
 
