@@ -147,12 +147,12 @@
   function clientRectToScreen(rect) {
     const metrics = getWindowMetrics();
     const vp = metrics.estimatedViewportOnScreen;
-    const dpr = window.devicePixelRatio || 1;
+    // vp and rect are CSS (logical) pixels; overlay canvas also draws in CSS pixels
     return {
-      x: Math.round((vp.x + rect.x) * dpr),
-      y: Math.round((vp.y + rect.y) * dpr),
-      w: Math.round(rect.width * dpr),
-      h: Math.round(rect.height * dpr)
+      x: Math.round(vp.x + rect.x),
+      y: Math.round(vp.y + rect.y),
+      w: Math.round(rect.width),
+      h: Math.round(rect.height)
     };
   }
 

@@ -124,7 +124,7 @@ async function startGuidance() {
   if (result.step) instructionText.textContent = result.step.instruction;
   renderStepDots(result.stepIndex || 0, result.totalSteps || 6);
   stepLabel.textContent = `Step ${(result.stepIndex || 0) + 1} of ${result.totalSteps || 6}`;
-  scheduleLoop(800);
+  scheduleLoop(300);
 }
 
 function pauseGuidance() {
