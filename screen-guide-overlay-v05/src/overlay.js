@@ -31,6 +31,7 @@ function draw() {
   if (!current || current.type === 'clear') return;
 
   const type = current.type;
+
   if (type === 'message') {
     drawMessage(current.message || 'Checking screen…', current.confidence);
     return;
@@ -38,13 +39,16 @@ function draw() {
 
   if (type === 'callout') {
     drawMessage(current.message || 'Checking screen…', current.confidence);
-    if (current.highlight) drawArrow(current.arrow || null, current.highlight);
+    if (current.highlight) drawAnimatedArrow(current.highlight);
     return;
   }
 
+  // dom-highlight / vision-highlight
   const rect = current.highlight || current.anchor?.rect;
-  if (rect) drawHighlight(rect, current.label || current.message || 'Click here', current.confidence);
-  drawArrow(current.arrow || null, rect);
+  if (rect) {
+    drawHighlight(rect, current.label || current.message || 'Click here', current.confidence);
+    drawAnimatedArrow(rect);
+  }
   drawEvidenceBadge(current);
 }
 
@@ -53,22 +57,57 @@ function drawHighlight(rect, label, confidence) {
   const y = rect.y;
   const w = rect.w;
   const h = rect.h;
-  const pulse = Math.sin((Date.now() - pulseStart) / 180) * 0.5 + 0.5;
+  const t = (Date.now() - pulseStart) / 1000;
+  const pulse = Math.sin(t * Math.PI * 1.8) * 0.5 + 0.5;
 
   ctx.save();
-  ctx.lineWidth = 4 + pulse * 2;
+  ctx.lineWidth = 3 + pulse * 2;
   ctx.strokeStyle = 'rgba(255, 138, 0, 0.96)';
-  ctx.fillStyle = 'rgba(255, 138, 0, 0.10)';
-  roundRect(ctx, x - 8, y - 8, w + 16, h + 16, 14);
+  ctx.fillStyle = `rgba(255, 138, 0, ${0.06 + pulse * 0.08})`;
+  roundRect(ctx, x - 6, y - 6, w + 12, h + 12, 12);
   ctx.fill();
   ctx.stroke();
 
   ctx.lineWidth = 1;
-  ctx.strokeStyle = 'rgba(255,255,255,0.65)';
-  roundRect(ctx, x - 2, y - 2, w + 4, h + 4, 8);
+  ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+  roundRect(ctx, x - 1, y - 1, w + 2, h + 2, 7);
   ctx.stroke();
 
-  drawLabel(label, x, Math.max(18, y - 52), confidence);
+  drawLabel(label, x, Math.max(18, y - 48), confidence);
+  ctx.restore();
+}
+
+function drawAnimatedArrow(rect) {
+  if (!rect) return;
+  const cx = rect.x + rect.w / 2;
+  const ty = rect.y - 8;           // tip just above the element top
+  const t = (Date.now() - pulseStart) / 600; // cycle ~600ms
+
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // 3 cascading chevrons, each offset by 1/3 of the cycle
+  for (let i = 0; i < 3; i++) {
+    const phase = ((t - i * 0.33) % 1 + 1) % 1;  // 0→1 cycling
+    const alpha = Math.sin(phase * Math.PI);        // fade in then out
+    const dropY = i * 18 - phase * 14;             // cascade downward as they fade
+
+    ctx.globalAlpha = alpha * 0.92;
+    ctx.strokeStyle = 'rgba(255, 138, 0, 1)';
+    ctx.lineWidth = 4 - i * 0.6;
+
+    const chevronW = 22 - i * 3;
+    const chevronH = 12;
+    const baseY = ty - 50 + dropY;
+
+    ctx.beginPath();
+    ctx.moveTo(cx - chevronW, baseY);
+    ctx.lineTo(cx, baseY + chevronH);
+    ctx.lineTo(cx + chevronW, baseY);
+    ctx.stroke();
+  }
+
   ctx.restore();
 }
 
@@ -77,20 +116,20 @@ function drawLabel(text, x, y, confidence) {
   const confText = typeof confidence === 'number' ? `  ${(confidence * 100).toFixed(0)}%` : '';
   const full = safeText + confText;
   ctx.save();
-  ctx.font = '700 16px Inter, system-ui, sans-serif';
+  ctx.font = '700 15px Inter, system-ui, sans-serif';
   const metrics = ctx.measureText(full);
   const boxW = Math.min(window.innerWidth - 32, metrics.width + 28);
-  const boxH = 38;
+  const boxH = 34;
   const bx = Math.max(16, Math.min(window.innerWidth - boxW - 16, x));
   const by = Math.max(16, Math.min(window.innerHeight - boxH - 16, y));
-  ctx.fillStyle = 'rgba(20, 20, 24, 0.92)';
-  ctx.strokeStyle = 'rgba(255, 138, 0, 0.95)';
+  ctx.fillStyle = 'rgba(20, 20, 24, 0.90)';
+  ctx.strokeStyle = 'rgba(255, 138, 0, 0.90)';
   ctx.lineWidth = 2;
-  roundRect(ctx, bx, by, boxW, boxH, 12);
+  roundRect(ctx, bx, by, boxW, boxH, 10);
   ctx.fill();
   ctx.stroke();
   ctx.fillStyle = '#fff';
-  ctx.fillText(full, bx + 14, by + 24);
+  ctx.fillText(full, bx + 14, by + 22);
   ctx.restore();
 }
 
@@ -103,8 +142,12 @@ function drawMessage(text, confidence) {
   const h = 58 + lines.length * 24;
   const x = Math.round((window.innerWidth - w) / 2);
   const y = Math.round(window.innerHeight * 0.13);
+
+  // subtle border pulse
+  const t = (Date.now() - pulseStart) / 1000;
+  const pulse = Math.sin(t * Math.PI * 1.4) * 0.5 + 0.5;
   ctx.fillStyle = 'rgba(20, 20, 24, 0.92)';
-  ctx.strokeStyle = 'rgba(255, 138, 0, 0.92)';
+  ctx.strokeStyle = `rgba(255, 138, 0, ${0.70 + pulse * 0.25})`;
   ctx.lineWidth = 2;
   roundRect(ctx, x, y, w, h, 16);
   ctx.fill();
@@ -113,54 +156,10 @@ function drawMessage(text, confidence) {
   lines.forEach((line, i) => ctx.fillText(line, x + 22, y + 38 + i * 24));
   if (typeof confidence === 'number') {
     ctx.font = '600 12px Inter, system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.fillStyle = 'rgba(255,255,255,0.60)';
     ctx.fillText(`confidence ${(confidence * 100).toFixed(0)}%`, x + 22, y + h - 14);
   }
   ctx.restore();
-}
-
-function drawArrow(arrow, rect) {
-  if (!arrow && !rect) return;
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255, 138, 0, 0.95)';
-  ctx.fillStyle = 'rgba(255, 138, 0, 0.95)';
-  ctx.lineWidth = 9;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-
-  let endX, endY, startX, startY;
-  if (rect) {
-    endX = rect.x + rect.w / 2;
-    endY = rect.y + rect.h / 2;
-    startX = endX - 170;
-    startY = Math.max(80, endY - 120);
-  } else {
-    endX = (arrow.x || 0.5) * window.innerWidth;
-    endY = (arrow.y || 0.5) * window.innerHeight;
-    startX = endX;
-    startY = arrow.direction === 'down' ? endY - 160 : endY + 160;
-  }
-
-  ctx.beginPath();
-  ctx.moveTo(startX, startY);
-  ctx.quadraticCurveTo((startX + endX) / 2, startY, endX, endY);
-  ctx.stroke();
-
-  const angle = Math.atan2(endY - startY, endX - startX);
-  drawArrowHead(endX, endY, angle);
-  ctx.restore();
-}
-
-function drawArrowHead(x, y, angle) {
-  const len = 28;
-  const a1 = angle - Math.PI / 7;
-  const a2 = angle + Math.PI / 7;
-  ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x - len * Math.cos(a1), y - len * Math.sin(a1));
-  ctx.lineTo(x - len * Math.cos(a2), y - len * Math.sin(a2));
-  ctx.closePath();
-  ctx.fill();
 }
 
 function drawEvidenceBadge(guidance) {
@@ -215,6 +214,7 @@ function wrapText(text, maxChars) {
   return lines.slice(0, 4);
 }
 
+// 60ms = ~16fps, smooth enough for animation without heavy CPU
 setInterval(() => {
-  if (current && current.type !== 'clear' && (current.highlight || current.anchor?.rect)) draw();
-}, 600);
+  if (current && current.type !== 'clear') draw();
+}, 60);

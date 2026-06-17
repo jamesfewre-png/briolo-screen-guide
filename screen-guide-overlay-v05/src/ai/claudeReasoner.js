@@ -63,6 +63,7 @@ Rules:
 - ALWAYS prefer DOM/selector evidence over screenshot guesses when both are available.
 - NEVER display credential values (tokens, passwords, API keys) in the overlay message or label. You may highlight where to paste, but never echo what is there.
 - If confidence < 0.45: set status to "unsure", write a fallback message, do NOT set highlight or arrow target coordinates.
+- Read the URL from the browser address bar in the screenshot. If it matches the completionSignals.urlContains patterns for the current step, set status "complete" immediately.
 - If the current URL does not match any expectedDomains for the workflow step: set status to "wrong-page" and tell the user where to navigate.
 - Write a short reasoning note (1-2 sentences, internal — not shown in overlay).
 - overlay.message must be ≤60 characters, plain English, no markdown, no asterisks. Think tooltip, not paragraph.
