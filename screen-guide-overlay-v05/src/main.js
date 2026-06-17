@@ -3,13 +3,15 @@ require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 const http = require('http');
 
 // Guard Electron-only requires so plain-Node test imports of this file don't crash
-let app, BrowserWindow, ipcMain, screen;
+let app, BrowserWindow, ipcMain, screen, session, desktopCapturer;
 try {
   const electron = require('electron');
   app = electron.app;
   BrowserWindow = electron.BrowserWindow;
   ipcMain = electron.ipcMain;
   screen = electron.screen;
+  session = electron.session;
+  desktopCapturer = electron.desktopCapturer;
 } catch (_) {}
 
 const { WorkflowEngine } = require('./workflow/engine');
@@ -248,6 +250,15 @@ function registerIpcHandlers() {
 
 if (app) {
   app.whenReady().then(() => {
+    // Electron 31 requires explicit handler — without this getDisplayMedia silently fails
+    session.defaultSession.setDisplayMediaRequestHandler((_request, callback) => {
+      desktopCapturer.getSources({ types: ['screen'] }).then(sources => {
+        callback({ video: sources[0], audio: 'loopback' });
+      }).catch(() => callback({}));
+    });
+    session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+      callback(permission === 'media' || permission === 'display-capture');
+    });
     startBridgeServer();
     registerIpcHandlers();
     createWindows();
