@@ -38,7 +38,7 @@ function draw() {
 
   if (type === 'callout') {
     drawMessage(current.message || 'Checking screen…', current.confidence);
-    drawArrow(current.arrow || { direction: 'down', x: 0.5, y: 0.75 }, null);
+    if (current.highlight) drawArrow(current.arrow || null, current.highlight);
     return;
   }
 

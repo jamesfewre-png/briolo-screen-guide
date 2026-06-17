@@ -66,7 +66,9 @@ Rules:
 - If the current URL does not match any expectedDomains for the workflow step: set status to "wrong-page" and tell the user where to navigate.
 - Write a short reasoning note (1-2 sentences, internal — not shown in overlay).
 - overlay.message must be ≤60 characters, plain English, no markdown, no asterisks. Think tooltip, not paragraph.
-- overlay.label must be ≤40 characters.`;
+- overlay.label must be ≤40 characters.
+- Use overlay type "message" for confirmations and status updates. Only use "callout" when you have a specific screen element to point at with pixel coordinates in the highlight field.
+- Never instruct the user to navigate or switch tabs in overlay.message — navigation is handled separately.`;
 
 function trimPageStateForModel(pageState) {
   if (!pageState) return null;
