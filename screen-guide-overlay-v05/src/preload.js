@@ -11,5 +11,7 @@ contextBridge.exposeInMainWorld('screenGuide', {
   onPageStateUpdate: (cb) => ipcRenderer.on('page-state:update', (_e, data) => cb(data)),
   onWorkflowStepChange: (cb) => ipcRenderer.on('workflow:step-change', (_e, data) => cb(data)),
   onWorkflowStatusChange: (cb) => ipcRenderer.on('workflow:status-change', (_e, data) => cb(data)),
-  onRedetect: (cb) => ipcRenderer.on('guide:redetect', () => cb())
+  onRedetect: (cb) => ipcRenderer.on('guide:redetect', () => cb()),
+  onNavigate: (cb) => ipcRenderer.on('guide:navigate', (_e, data) => cb(data)),
+  openUrl: (url) => ipcRenderer.invoke('guide:open-url', url)
 });

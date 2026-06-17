@@ -3,7 +3,7 @@ require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 const http = require('http');
 
 // Guard Electron-only requires so plain-Node test imports of this file don't crash
-let app, BrowserWindow, ipcMain, screen, session, desktopCapturer;
+let app, BrowserWindow, ipcMain, screen, session, desktopCapturer, shell;
 try {
   const electron = require('electron');
   app = electron.app;
@@ -12,6 +12,7 @@ try {
   screen = electron.screen;
   session = electron.session;
   desktopCapturer = electron.desktopCapturer;
+  shell = electron.shell;
 } catch (_) {}
 
 const { WorkflowEngine } = require('./workflow/engine');
@@ -160,7 +161,10 @@ function startBridgeServer() {
           const engineResult = engine.updatePageState(latestPageState);
           if (engineResult && engineResult.status === 'wrong-page') {
             const step = engineResult.step;
-            sendOverlay({ type: 'message', message: "You're on the wrong page. " + step.fallback, confidence: 0.99 });
+            sendOverlay({ type: 'message', message: 'Wrong page — open the correct one from the guide panel', confidence: 0.99 });
+            if (controlWindow && !controlWindow.isDestroyed()) {
+              controlWindow.webContents.send('guide:navigate', { url: step.targetUrl || null, label: step.id });
+            }
           }
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -244,6 +248,13 @@ function registerIpcHandlers() {
     tracker.stop();
     tracker.clearAnchor();
     sendOverlay({ type: 'clear' });
+    return { ok: true };
+  });
+
+  ipcMain.handle('guide:open-url', async (_e, url) => {
+    if (shell && url && (url.startsWith('https://') || url.startsWith('http://'))) {
+      await shell.openExternal(url);
+    }
     return { ok: true };
   });
 }

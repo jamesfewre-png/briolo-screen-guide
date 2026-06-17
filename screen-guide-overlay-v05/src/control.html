@@ -55,6 +55,10 @@
     .debug-content { font-family: ui-monospace, monospace; font-size: 11px; color: #8a96ac; white-space: pre-wrap; word-break: break-all; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-height: 160px; overflow: auto; }
     .pill { display: inline-flex; align-items: center; border: 1px solid var(--border); border-radius: 999px; padding: 4px 8px; font-size: 11px; color: var(--text-dim); margin: 3px 3px 0 0; }
     .pill.ok { color: var(--green); } .pill.warn { color: #ffd479; } .pill.bad { color: var(--red); }
+    .navigate-banner { background: rgba(255,138,0,0.1); border: 1px solid var(--orange); border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; display: none; }
+    .navigate-banner.visible { display: block; }
+    .navigate-hint { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+    .btn-navigate { width: 100%; background: var(--orange); color: #111; border: 0; border-radius: 10px; padding: 11px 14px; font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit; }
   </style>
 </head>
 <body>
@@ -70,6 +74,10 @@
     <div class="instruction-card">
       <div class="instruction-text" id="instructionText">Click Start Guidance to begin.</div>
       <div class="confidence-label" id="confidenceLabel"></div>
+    </div>
+    <div class="navigate-banner" id="navigateBanner">
+      <div class="navigate-hint">You&#8217;re on the wrong page. Open the correct one:</div>
+      <button class="btn-navigate" id="navigateBtn">Open page</button>
     </div>
   </div>
 

@@ -13,6 +13,8 @@ const debugToggle = document.getElementById('debugToggle');
 const debugPanel = document.getElementById('debugPanel');
 const debugContent = document.getElementById('debugContent');
 const domPillsEl = document.getElementById('domPills');
+const navigateBanner = document.getElementById('navigateBanner');
+const navigateBtn = document.getElementById('navigateBtn');
 
 let running = false;
 let paused = false;
@@ -32,7 +34,16 @@ window.screenGuide.onWorkflowStepChange(({ step, index, total }) => {
   stepLabel.textContent = `Step ${index + 1} of ${total}`;
   if (step) instructionText.textContent = step.instruction;
   confidenceLabel.textContent = '';
+  navigateBanner.classList.remove('visible');
   renderStepDots(index, total);
+});
+
+window.screenGuide.onNavigate(({ url, label }) => {
+  if (url) {
+    navigateBtn.textContent = `Open ${label.replace(/-/g, ' ')} →`;
+    navigateBtn.onclick = () => window.screenGuide.openUrl(url);
+    navigateBanner.classList.add('visible');
+  }
 });
 
 window.screenGuide.onWorkflowStatusChange(({ event, state }) => {

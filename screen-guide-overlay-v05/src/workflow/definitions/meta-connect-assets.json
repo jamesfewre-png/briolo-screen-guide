@@ -6,6 +6,7 @@
     {
       "id": "confirm-logged-in",
       "instruction": "Make sure you are logged in to Meta Business Suite.",
+      "targetUrl": "https://business.facebook.com",
       "expectedDomains": ["business.facebook.com", "facebook.com"],
       "targetLabels": ["Business Suite", "Business Manager", "Business Settings"],
       "completionSignals": {
@@ -17,6 +18,7 @@
     {
       "id": "open-business-settings",
       "instruction": "Click Business Settings in the left sidebar.",
+      "targetUrl": "https://business.facebook.com/latest/settings/",
       "expectedDomains": ["business.facebook.com"],
       "targetLabels": ["Business Settings"],
       "completionSignals": {
