@@ -183,7 +183,7 @@ async function captureAndAnalyze() {
     debugContent.textContent = JSON.stringify(result, null, 2);
     const confidence = Number(result?.confidence || 0);
     setConfidence(confidence);
-    if (result?.instruction) instructionText.textContent = result.instruction;
+    if (result?.instruction && result?.status !== 'wrong-page') instructionText.textContent = result.instruction;
     currentIntervalMs = confidence < 0.55 ? 500 : 900;
   } catch (err) {
     debugContent.textContent = `Error: ${err.message}`;

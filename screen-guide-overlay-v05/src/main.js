@@ -198,7 +198,15 @@ function registerIpcHandlers() {
       previousGuidance: latestGuidance
     });
 
-    sendOverlay(result.overlay || result);
+    if (result.status === 'wrong-page') {
+      const step = engine.getCurrentStep();
+      sendOverlay({ type: 'message', message: 'Wrong page', confidence: 0.99 });
+      if (controlWindow && !controlWindow.isDestroyed() && step?.targetUrl) {
+        controlWindow.webContents.send('guide:navigate', { url: step.targetUrl, label: step.id });
+      }
+    } else {
+      sendOverlay(result.overlay || result);
+    }
 
     if (result.target && result.target.screenRect && result.confidence >= 0.52) {
       tracker.setAnchor({
