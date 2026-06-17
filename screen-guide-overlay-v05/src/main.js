@@ -182,6 +182,22 @@ function startBridgeServer() {
     res.writeHead(404, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: false, error: 'Not found' }));
   });
+  bridgeServer.on('error', (err) => {
+    if (err.code !== 'EADDRINUSE') return;
+    const { exec } = require('child_process');
+    exec(`netstat -ano | findstr :${BRIDGE_PORT}`, (_err, stdout) => {
+      const pids = [...new Set(
+        (stdout || '').split('\n')
+          .map(l => parseInt((l.trim().split(/\s+/).pop() || ''), 10))
+          .filter(n => n > 0 && n !== process.pid)
+      )];
+      if (!pids.length) return;
+      exec(pids.map(p => `taskkill /PID ${p} /F`).join(' & '), () => {
+        setTimeout(startBridgeServer, 700);
+      });
+    });
+  });
+
   bridgeServer.listen(BRIDGE_PORT, '127.0.0.1', () => {
     console.log('Screen Guide bridge listening on http://127.0.0.1:' + BRIDGE_PORT);
   });
