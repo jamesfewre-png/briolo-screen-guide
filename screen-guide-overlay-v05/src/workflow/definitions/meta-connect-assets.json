@@ -1,0 +1,61 @@
+{
+  "id": "meta-connect-assets",
+  "name": "Connect Meta Business Assets",
+  "description": "Guide user through connecting Meta/Facebook business assets to their dashboard.",
+  "steps": [
+    {
+      "id": "confirm-logged-in",
+      "instruction": "Make sure you are logged in to Meta Business Suite.",
+      "expectedDomains": ["business.facebook.com", "facebook.com"],
+      "targetLabels": ["Business Suite", "Business Manager", "Business Settings"],
+      "completionSignals": {
+        "urlContains": ["business.facebook.com"],
+        "textPresent": ["Business Manager", "Business Settings", "People", "Accounts"]
+      },
+      "fallback": "Go to business.facebook.com and log in with your business Facebook account."
+    },
+    {
+      "id": "open-business-settings",
+      "instruction": "Click Business Settings in the left sidebar.",
+      "expectedDomains": ["business.facebook.com"],
+      "targetLabels": ["Business Settings"],
+      "completionSignals": {
+        "urlContains": ["/settings/"],
+        "textPresent": ["Business Settings", "Business Portfolio", "People and Assets"]
+      },
+      "fallback": "Look for Business Settings in the left navigation panel."
+    },
+    {
+      "id": "open-apps",
+      "instruction": "Click Apps or Integrations in the sidebar.",
+      "expectedDomains": ["business.facebook.com"],
+      "targetLabels": ["Apps", "Integrations", "Business Apps"],
+      "completionSignals": {
+        "textPresent": ["Apps", "Business Apps", "Connected apps"]
+      },
+      "fallback": "Scroll the left sidebar until you see Apps or Integrations."
+    },
+    {
+      "id": "find-token-area",
+      "instruction": "Find the access token or developer credentials section.",
+      "targetLabels": ["Access Token", "Generate Token", "Developer", "Token"],
+      "fallback": "Look for Developer or Token in the current section. You may need to scroll."
+    },
+    {
+      "id": "copy-token",
+      "instruction": "When the token is visible, copy it manually. Do not share it with anyone.",
+      "targetLabels": ["Copy", "Generate", "Generate Token"],
+      "completionSignals": {
+        "textPresent": ["Copied", "Token copied"]
+      },
+      "fallback": "Click Generate or Copy when the token appears, then copy it manually."
+    },
+    {
+      "id": "return-to-dashboard",
+      "instruction": "Return to your AI Flow dashboard and paste the token in the field shown.",
+      "expectedDomains": ["localhost", "aiflowsystems", "app."],
+      "targetLabels": ["Paste token", "Access token", "API key"],
+      "fallback": "Switch back to your dashboard tab and find the token input field."
+    }
+  ]
+}

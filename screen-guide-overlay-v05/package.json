@@ -1,0 +1,23 @@
+{
+  "name": "screen-guide-overlay-v05",
+  "version": "0.5.0",
+  "description": "Level 3 AI desktop overlay guide: Claude vision + DOM grounding + workflow engine.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "test:sanitize": "node --test tests/sanitize.test.js",
+    "test:dom": "node --test tests/dom-guidance.test.js",
+    "test:workflow": "node --test tests/workflow-engine.test.js",
+    "test:tracker": "node --test tests/tracker.test.js"
+  },
+  "keywords": ["electron", "ai", "screen-overlay", "dom-aware", "guided-onboarding"],
+  "author": "AI Flow Systems",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.40.0"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7"
+  }
+}

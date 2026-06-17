@@ -1,0 +1,20 @@
+﻿<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { width: 280px; margin: 0; padding: 14px; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #111318; color: #f7f7f7; }
+    h1 { font-size: 15px; margin: 0 0 8px; }
+    p { font-size: 12px; color: #b6c0d2; line-height: 1.4; }
+    button { border: 0; border-radius: 8px; padding: 9px 11px; font-weight: 700; background: #ff8a00; color: #111; cursor: pointer; }
+    .status { margin-top: 10px; font-size: 12px; white-space: pre-wrap; color: #cbd2df; }
+  </style>
+</head>
+<body>
+  <h1>AI Screen Guide Helper</h1>
+  <p>Sends DOM context from the active page to the local desktop app. It does not click or type for you.</p>
+  <button id="toggle">Toggle helper</button>
+  <div id="status" class="status">Checking...</div>
+  <script src="popup.js"></script>
+</body>
+</html>
