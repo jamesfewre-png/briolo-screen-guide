@@ -67,8 +67,12 @@ Rules:
 - Write a short reasoning note (1-2 sentences, internal — not shown in overlay).
 - overlay.message must be ≤60 characters, plain English, no markdown, no asterisks. Think tooltip, not paragraph.
 - overlay.label must be ≤40 characters.
-- Use overlay type "message" for confirmations and status updates. Only use "callout" when you have a specific screen element to point at with pixel coordinates in the highlight field.
-- Never instruct the user to navigate or switch tabs in overlay.message — navigation is handled separately.`;
+- Use overlay type "message" for confirmations and status updates.
+- When you can identify a target element from the screenshot (no DOM data), use type "vision-highlight" with pixel coordinates in highlight. Set source to "vision-only".
+- When DOM data provides a screenRect, use type "dom-highlight". Set source to "level-3-dom-aware".
+- Only use type "callout" as a last resort when you cannot determine pixel coordinates at all.
+- Never instruct the user to navigate or switch tabs in overlay.message — navigation is handled separately.
+- highlight coordinates must be a TIGHT bounding box around the single target element only — do not pad or expand to include neighbouring elements.`;
 
 function trimPageStateForModel(pageState) {
   if (!pageState) return null;

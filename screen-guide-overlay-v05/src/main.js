@@ -216,8 +216,10 @@ function registerIpcHandlers() {
       previousGuidance: latestGuidance
     });
 
-    // Scale vision-highlight coords from captured frame space → screen CSS pixel space
-    if (result.overlay?.type === 'vision-highlight' && result.overlay.highlight) {
+    // Scale vision-derived coords from captured frame space → screen CSS pixel space.
+    // Applies whenever source is vision-only or fallback; DOM coords are already in screen space.
+    const isVisionSource = result.source === 'vision-only' || result.source === 'fallback';
+    if (isVisionSource && result.overlay?.highlight) {
       const { frameWidth, frameHeight } = payload.captureMeta || {};
       if (frameWidth && frameHeight) {
         const { width: sw, height: sh } = screen.getPrimaryDisplay().bounds;

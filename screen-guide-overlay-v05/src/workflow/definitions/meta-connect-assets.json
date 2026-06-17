@@ -29,13 +29,15 @@
     },
     {
       "id": "open-apps",
-      "instruction": "Click Apps or Integrations in the sidebar.",
+      "instruction": "In the left sidebar, click Connected apps.",
+      "targetUrl": "https://business.facebook.com/latest/settings/integration/",
       "expectedDomains": ["business.facebook.com"],
-      "targetLabels": ["Apps", "Integrations", "Business Apps"],
+      "targetLabels": ["Connected apps", "Apps", "Integrations", "Business Apps"],
       "completionSignals": {
-        "textPresent": ["Apps", "Business Apps", "Connected apps"]
+        "urlContains": ["/integration/", "/apps/"],
+        "textPresent": ["Connected apps", "Add connected app", "Business Apps"]
       },
-      "fallback": "Scroll the left sidebar until you see Apps or Integrations."
+      "fallback": "In Business Settings left sidebar, scroll down to find Connected apps."
     },
     {
       "id": "find-token-area",
