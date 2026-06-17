@@ -217,4 +217,4 @@ function wrapText(text, maxChars) {
 
 setInterval(() => {
   if (current && current.type !== 'clear' && (current.highlight || current.anchor?.rect)) draw();
-}, 120);
+}, 600);

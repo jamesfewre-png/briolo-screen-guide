@@ -115,7 +115,7 @@ async function startGuidance() {
   running = true; paused = false;
   startBtn.disabled = true; pauseBtn.disabled = false; stopBtn.disabled = false;
 
-  stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5, displaySurface: 'monitor' }, audio: false });
+  stream = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 1, displaySurface: 'monitor' }, audio: false });
   video.srcObject = stream;
   await video.play();
   stream.getVideoTracks()[0].addEventListener('ended', stopGuidance);
@@ -124,7 +124,7 @@ async function startGuidance() {
   if (result.step) instructionText.textContent = result.step.instruction;
   renderStepDots(result.stepIndex || 0, result.totalSteps || 6);
   stepLabel.textContent = `Step ${(result.stepIndex || 0) + 1} of ${result.totalSteps || 6}`;
-  scheduleLoop(100);
+  scheduleLoop(800);
 }
 
 function pauseGuidance() {
@@ -162,13 +162,13 @@ function scheduleLoop(delay) {
 
 function captureFrame() {
   if (!video.videoWidth) return null;
-  const maxW = 1280;
+  const maxW = 800;
   const scale = Math.min(1, maxW / video.videoWidth);
   captureCanvas.width = Math.round(video.videoWidth * scale);
   captureCanvas.height = Math.round(video.videoHeight * scale);
   const ctx = captureCanvas.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
-  return captureCanvas.toDataURL('image/jpeg', 0.62);
+  return captureCanvas.toDataURL('image/jpeg', 0.40);
 }
 
 async function captureAndAnalyze() {
@@ -184,7 +184,7 @@ async function captureAndAnalyze() {
     const confidence = Number(result?.confidence || 0);
     setConfidence(confidence);
     if (result?.instruction && result?.status !== 'wrong-page') instructionText.textContent = result.instruction;
-    currentIntervalMs = confidence < 0.55 ? 200 : 400;
+    currentIntervalMs = confidence < 0.55 ? 800 : 2000;
   } catch (err) {
     debugContent.textContent = `Error: ${err.message}`;
     currentIntervalMs = 1200;
