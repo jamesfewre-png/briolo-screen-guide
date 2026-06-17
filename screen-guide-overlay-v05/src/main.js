@@ -163,8 +163,7 @@ function startBridgeServer() {
             const step = engineResult.step;
             const targetUrl = step.targetUrl || null;
             const urlLabel = (step.id || '').replace(/-/g, ' ');
-            sendOverlay({ type: 'navigate', message: 'Wrong page', url: targetUrl, urlLabel, confidence: 0.99 });
-            if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setIgnoreMouseEvents(false);
+            sendOverlay({ type: 'message', message: 'Wrong page', confidence: 0.99 });
             if (controlWindow && !controlWindow.isDestroyed()) {
               controlWindow.webContents.send('guide:navigate', { url: targetUrl, label: step.id });
             }
@@ -204,14 +203,11 @@ function registerIpcHandlers() {
     if (result.status === 'wrong-page') {
       const step = engine.getCurrentStep();
       const targetUrl = step?.targetUrl || null;
-      const urlLabel = (step?.id || '').replace(/-/g, ' ');
-      sendOverlay({ type: 'navigate', message: 'Wrong page', url: targetUrl, urlLabel, confidence: 0.99 });
-      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setIgnoreMouseEvents(false);
+      sendOverlay({ type: 'message', message: 'Wrong page', confidence: 0.99 });
       if (controlWindow && !controlWindow.isDestroyed() && targetUrl) {
         controlWindow.webContents.send('guide:navigate', { url: targetUrl, label: step.id });
       }
     } else {
-      if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setIgnoreMouseEvents(true, { forward: true });
       sendOverlay(result.overlay || result);
     }
 
@@ -270,11 +266,6 @@ function registerIpcHandlers() {
     if (shell && url && (url.startsWith('https://') || url.startsWith('http://'))) {
       await shell.openExternal(url);
     }
-    return { ok: true };
-  });
-
-  ipcMain.handle('guide:overlay-navigated', async () => {
-    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.setIgnoreMouseEvents(true, { forward: true });
     return { ok: true };
   });
 }
