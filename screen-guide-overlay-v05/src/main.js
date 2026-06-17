@@ -1,4 +1,4 @@
-const path = require('path');
+﻿const path = require('path');
 const http = require('http');
 
 // Guard Electron-only requires so plain-Node test imports of this file don't crash
@@ -146,7 +146,7 @@ function startBridgeServer() {
 
     if (req.method === 'POST' && req.url === '/page-state') {
       let body = '';
-      req.on('data', chunk => { body += chunk.toString(); if (body.length > 2_000_000) req.destroy(); });
+      req.on('data', chunk => { body += chunk.toString(); if (body.length > 2000000) req.destroy(); });
       req.on('end', () => {
         try {
           const parsed = JSON.parse(body || '{}');
@@ -155,9 +155,9 @@ function startBridgeServer() {
           sendPageStateToControl();
 
           const engineResult = engine.updatePageState(latestPageState);
-          if (engineResult?.status === 'wrong-page') {
+          if (engineResult && engineResult.status === 'wrong-page') {
             const step = engineResult.step;
-            sendOverlay({ type: 'message', message: `You're on the wrong page. ${step.fallback}`, confidence: 0.99 });
+            sendOverlay({ type: 'message', message: "You're on the wrong page. " + step.fallback, confidence: 0.99 });
           }
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -174,7 +174,7 @@ function startBridgeServer() {
     res.end(JSON.stringify({ ok: false, error: 'Not found' }));
   });
   bridgeServer.listen(BRIDGE_PORT, '127.0.0.1', () => {
-    console.log(`Screen Guide bridge listening on http://127.0.0.1:${BRIDGE_PORT}`);
+    console.log('Screen Guide bridge listening on http://127.0.0.1:' + BRIDGE_PORT);
   });
 }
 
@@ -193,7 +193,7 @@ function registerIpcHandlers() {
 
     sendOverlay(result.overlay || result);
 
-    if (result.target?.screenRect && result.confidence >= 0.52) {
+    if (result.target && result.target.screenRect && result.confidence >= 0.52) {
       tracker.setAnchor({
         selector: result.target.selector,
         text: result.target.text,
