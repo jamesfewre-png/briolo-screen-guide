@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+﻿import { motion } from 'motion/react'
 
 interface Props {
   message: string
@@ -32,8 +32,8 @@ export function GuideCardBanner({ message, confidence, stepIndex, totalSteps, st
     >
       <div
         style={{
-          background: 'rgba(15,17,23,0.96)',
-          backdropFilter: 'blur(24px) saturate(180%)',
+          background: 'rgba(15,17,23,0.72)',
+          backdropFilter: 'blur(20px) saturate(160%)',
           border: '1px solid rgba(255,138,0,0.28)',
           borderRadius: 20,
           boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,138,0,0.10)',
@@ -91,3 +91,4 @@ export function GuideCardBanner({ message, confidence, stepIndex, totalSteps, st
     </motion.div>
   )
 }
+

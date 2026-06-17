@@ -1,4 +1,4 @@
-import { motion } from 'motion/react'
+﻿import { motion } from 'motion/react'
 
 interface Step { id: string; label: string; state: 'done' | 'active' | 'pending' }
 interface Props { steps: Step[] }
@@ -16,8 +16,8 @@ export function WorkflowDock({ steps }: Props) {
       <div
         style={{
           margin: '0 auto',
-          background: 'rgba(10,12,18,0.95)',
-          backdropFilter: 'blur(24px) saturate(180%)',
+          background: 'rgba(10,12,18,0.70)',
+          backdropFilter: 'blur(20px) saturate(160%)',
           borderTop: '1px solid rgba(255,138,0,0.18)',
           padding: '12px 24px 14px',
           display: 'flex',
@@ -63,7 +63,7 @@ export function WorkflowDock({ steps }: Props) {
                 animate={step.state === 'active' ? { scale: [1, 1.06, 1] } : {}}
                 transition={{ duration: 1.6, repeat: Infinity }}
               >
-                {step.state === 'done' ? '✓' : i + 1}
+                {step.state === 'done' ? 'âœ“' : i + 1}
               </motion.div>
               <span
                 style={{
@@ -85,3 +85,4 @@ export function WorkflowDock({ steps }: Props) {
     </motion.div>
   )
 }
+
