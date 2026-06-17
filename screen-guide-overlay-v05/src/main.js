@@ -66,7 +66,10 @@ function createWindows() {
       contextIsolation: true, nodeIntegration: false, sandbox: false
     }
   });
-  controlWindow.loadFile(path.join(__dirname, 'control.html'));
+  const controlDist = path.join(__dirname, '..', 'dist', 'control', 'index.html');
+  const controlFallback = path.join(__dirname, 'control.html');
+  const { existsSync } = require('fs');
+  controlWindow.loadFile(existsSync(controlDist) ? controlDist : controlFallback);
 
   overlayWindow = new BrowserWindow({
     x, y, width, height,
@@ -80,14 +83,22 @@ function createWindows() {
   });
   overlayWindow.setIgnoreMouseEvents(true, { forward: true });
   overlayWindow.setAlwaysOnTop(true, 'pop-up-menu');
-  overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
+  const overlayDist = path.join(__dirname, '..', 'dist', 'overlay', 'index.html');
+  overlayWindow.loadFile(existsSync(overlayDist) ? overlayDist : path.join(__dirname, 'overlay.html'));
   overlayWindow.once('ready-to-show', () => overlayWindow.showInactive());
 }
 
 function sendOverlay(guidance) {
   latestGuidance = guidance;
   if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send('overlay:update', guidance);
+    const step = engine.getCurrentStep();
+    const enriched = {
+      ...guidance,
+      stepInstruction: step?.instruction || null,
+      stepIndex: engine.getStepIndex ? engine.getStepIndex() : 0,
+      totalSteps: engine.getTotalSteps ? engine.getTotalSteps() : 7,
+    };
+    overlayWindow.webContents.send('overlay:update', enriched);
   }
 }
 

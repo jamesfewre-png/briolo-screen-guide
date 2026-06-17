@@ -4,12 +4,15 @@
   "description": "Level 3 AI desktop overlay guide: Claude vision + DOM grounding + workflow engine.",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron --no-sandbox .",
+    "start": "npm run build:ui && electron --no-sandbox .",
     "dev": "electron --no-sandbox .",
     "test:sanitize": "node --test tests/sanitize.test.js",
     "test:dom": "node --test tests/dom-guidance.test.js",
     "test:workflow": "node --test tests/workflow-engine.test.js",
-    "test:tracker": "node --test tests/tracker.test.js"
+    "test:tracker": "node --test tests/tracker.test.js",
+    "build:overlay": "vite build --config vite.overlay.config.ts",
+    "build:control": "vite build --config vite.control.config.ts",
+    "build:ui": "npm run build:overlay && npm run build:control"
   },
   "keywords": [
     "electron",
@@ -22,9 +25,21 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.40.0",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "motion": "^11.18.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "electron": "^31.7.7"
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.5.0",
+    "concurrently": "^9.2.1",
+    "electron": "^31.7.7",
+    "postcss": "^8.5.15",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "vite": "^4.5.14"
   }
 }
