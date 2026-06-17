@@ -73,7 +73,7 @@ function drawHighlight(rect, label, confidence) {
 }
 
 function drawLabel(text, x, y, confidence) {
-  const safeText = String(text || 'Next step').slice(0, 90);
+  const safeText = String(text || 'Next step').replace(/\*\*/g, '').slice(0, 50);
   const confText = typeof confidence === 'number' ? `  ${(confidence * 100).toFixed(0)}%` : '';
   const full = safeText + confText;
   ctx.save();
@@ -95,7 +95,7 @@ function drawLabel(text, x, y, confidence) {
 }
 
 function drawMessage(text, confidence) {
-  const message = String(text || 'Checking screen…').slice(0, 160);
+  const message = String(text || 'Checking screen…').replace(/\*\*/g, '').slice(0, 80);
   ctx.save();
   ctx.font = '700 18px Inter, system-ui, sans-serif';
   const lines = wrapText(message, 44);

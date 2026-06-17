@@ -32,8 +32,8 @@ const GUIDANCE_TOOL = {
         required: ['type', 'message'],
         properties: {
           type: { type: 'string', enum: ['dom-highlight', 'vision-highlight', 'callout', 'message', 'clear'] },
-          message: { type: 'string' },
-          label: { type: 'string' },
+          message: { type: 'string', description: 'Overlay tooltip — max 60 chars, plain words only, no markdown' },
+          label: { type: 'string', description: 'Element label — max 40 chars' },
           confidence: { type: 'number' },
           highlight: {
             type: 'object',
@@ -64,7 +64,9 @@ Rules:
 - NEVER display credential values (tokens, passwords, API keys) in the overlay message or label. You may highlight where to paste, but never echo what is there.
 - If confidence < 0.45: set status to "unsure", write a fallback message, do NOT set highlight or arrow target coordinates.
 - If the current URL does not match any expectedDomains for the workflow step: set status to "wrong-page" and tell the user where to navigate.
-- Write a short reasoning note (1-2 sentences, internal — not shown in overlay).`;
+- Write a short reasoning note (1-2 sentences, internal — not shown in overlay).
+- overlay.message must be ≤60 characters, plain English, no markdown, no asterisks. Think tooltip, not paragraph.
+- overlay.label must be ≤40 characters.`;
 
 function trimPageStateForModel(pageState) {
   if (!pageState) return null;
