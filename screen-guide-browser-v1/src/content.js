@@ -10,7 +10,7 @@
   // Diagnostic: confirms THIS (fresh) content script is live on the page. If you
   // reload the extension you MUST refresh the page — otherwise the old orphaned
   // script runs and highlights never appear.
-  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.0', { top: IS_TOP, url: location.href }); } catch (_) {}
+  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.1', { top: IS_TOP, url: location.href }); } catch (_) {}
 
   // Driver.js v1 IIFE exports window.driver.js.driver (factory fn, not class)
   const driverFactory = (typeof window !== 'undefined' && window.driver && window.driver.js)
@@ -213,29 +213,34 @@
     if (!needle) return null;
     let nodes;
     try { nodes = (document.body || document.documentElement).querySelectorAll('*'); } catch (_) { return null; }
-    const exact = [], contains = [];
-    for (const el of nodes) {
-      const tag = el.tagName;
-      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'SVG' || tag === 'PATH' || tag === 'NOSCRIPT') continue;
-      if (el.id === '__sg_highlight') continue;
-      // Cheap pre-filter on text before any layout/style work.
-      const raw = el.textContent;
-      if (!raw) continue;
-      const vt = raw.replace(/\s+/g, ' ').trim().toLowerCase();
-      if (!vt) continue;
-      const exactish = (vt === needle) || (needle.includes(vt) && vt.length >= 3);
-      const has = !exactish && vt.includes(needle);
-      if (!exactish && !has) continue;
-      try { if (el.closest && (el.closest('.driver-popover') || el.id === '__sg_tip')) continue; } catch (_) {}
-      const r = el.getBoundingClientRect();
-      if (r.width < 2 || r.height < 2) continue;
-      const st = window.getComputedStyle(el);
-      if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') continue;
-      const area = r.width * r.height;
-      (exactish ? exact : contains).push({ el, area });
+    let exact = null, exactArea = Infinity;     // smallest element whose label IS the needle
+    let contains = null, containsArea = Infinity; // smallest element that contains it
+    for (let i = 0; i < nodes.length; i++) {
+      const el = nodes[i];
+      try {
+        const tag = el.tagName;
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'svg' || tag === 'path' || tag === 'SVG' || tag === 'PATH') continue;
+        if (el.id === '__sg_highlight') continue;
+        const raw = el.textContent;
+        // Skip empty and big containers fast — a label is short, so this both
+        // avoids matching wrapper groups and keeps the scan cheap.
+        if (!raw || raw.length > 200) continue;
+        const vt = raw.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (!vt) continue;
+        const isExact = (vt === needle) || (needle.includes(vt) && vt.length >= 3);
+        const isContains = !isExact && vt.includes(needle);
+        if (!isExact && !isContains) continue;
+        if (el.closest && (el.closest('.driver-popover') || el.closest('#__sg_tip'))) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) continue;
+        const st = window.getComputedStyle(el);
+        if (!st || st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') continue;
+        const area = r.width * r.height;
+        if (isExact) { if (area < exactArea) { exactArea = area; exact = el; } }
+        else { if (area < containsArea) { containsArea = area; contains = el; } }
+      } catch (_) { /* skip this element, keep scanning */ }
     }
-    const pick = arr => (arr.length ? arr.sort((a, b) => a.area - b.area)[0].el : null);
-    let el = pick(exact) || pick(contains);
+    let el = exact || contains;
     if (!el) return null;
     // Climb to the nearest clickable ancestor, but only if it's not >4x bigger
     // (prevents grabbing the whole nav group when the leaf is a span/text node).
