@@ -31,33 +31,40 @@ if (existsSync(workflowSrc)) {
 }
 console.log(`Copied ${workflowCount} workflow file(s) from ${workflowSrc}/`);
 
-// ── API key injection ─────────────────────────────────────────────────────────
-// Read ANTHROPIC_API_KEY from a local .env first, then fall back to the repo-root ../.env.
-// The key lands ONLY in dist/config.json, which is gitignored and never committed.
-function readKeyFrom(envPath) {
+// ── Config injection (dist/config.json — gitignored, never committed) ──────────
+// PRODUCTION: if GUIDE_PROXY_URL is set, ship the proxy URL + shared secret and
+// NO Anthropic key (the key stays server-side on the Briolo backend).
+// DEV: otherwise ship ANTHROPIC_API_KEY so the extension can call Claude directly.
+// Read from a local ./.env first, then fall back to the repo-root ../.env.
+function readVar(envPath, name) {
   try {
     const content = readFileSync(envPath, 'utf8');
-    const match = content.match(/^ANTHROPIC_API_KEY=(.+)$/m);
-    if (match) return { key: match[1].trim(), source: envPath };
-  } catch (_) {
-    // missing file is fine — fall through to the next candidate
-  }
+    const m = content.match(new RegExp('^' + name + '=(.+)$', 'm'));
+    if (m) return m[1].trim();
+  } catch (_) { /* missing file is fine */ }
   return null;
 }
+function readAny(name) { return readVar('.env', name) || readVar(join('..', '.env'), name); }
 
-const found = readKeyFrom('.env') || readKeyFrom(join('..', '.env'));
+const proxyUrl = readAny('GUIDE_PROXY_URL');
+const proxySecret = readAny('GUIDE_SHARED_SECRET');
+const apiKey = readAny('ANTHROPIC_API_KEY');
 
-if (found && found.key) {
-  // config.json is the ONLY place the API key is written.
-  writeFileSync(join(dist, 'config.json'), JSON.stringify({ claudeApiKey: found.key }));
-  console.log(`API key injected into dist/config.json (source: ${found.source})`);
+if (proxyUrl) {
+  const cfg = { proxyUrl };
+  if (proxySecret) cfg.proxySecret = proxySecret;
+  writeFileSync(join(dist, 'config.json'), JSON.stringify(cfg));
+  console.log(`Proxy mode: dist/config.json -> ${proxyUrl} (no API key shipped)`);
+} else if (apiKey) {
+  writeFileSync(join(dist, 'config.json'), JSON.stringify({ claudeApiKey: apiKey }));
+  console.log('Dev mode: API key injected into dist/config.json');
   console.log('REMINDER: dist/ is gitignored — never commit it (it contains your API key).');
 } else {
   console.warn('--------------------------------------------------------------------');
-  console.warn('WARNING: ANTHROPIC_API_KEY not found in ./.env or ../.env');
-  console.warn('Build will complete, but AI hybrid reasoning is DISABLED.');
-  console.warn('Add ANTHROPIC_API_KEY=sk-ant-... to ./.env (or ../.env) and rebuild');
-  console.warn('to enable Claude-assisted guidance. Text-match guidance still works.');
+  console.warn('WARNING: no GUIDE_PROXY_URL and no ANTHROPIC_API_KEY in ./.env or ../.env');
+  console.warn('Build completes, but AI guidance is DISABLED until you set one and rebuild.');
+  console.warn('  Production: GUIDE_PROXY_URL=https://your-app.vercel.app/api/analyze');
+  console.warn('  Dev:        ANTHROPIC_API_KEY=sk-ant-...');
   console.warn('--------------------------------------------------------------------');
 }
 

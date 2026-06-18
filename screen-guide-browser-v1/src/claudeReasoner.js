@@ -121,11 +121,56 @@ function isRetryable(err) {
   return err.status === 429 || err.status === 529;
 }
 
+// PRODUCTION path: call the Briolo backend proxy instead of Anthropic directly.
+// The proxy holds the real API key server-side; the extension only carries a
+// shared secret. Returns the same { reasoning, message, sgId, confidence, status }.
+async function analyzeViaProxy({ goal, recentActions, elements, screenshotDataUrl, currentUrl, proxyUrl, proxySecret }) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  let res;
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (proxySecret) headers['x-guide-secret'] = proxySecret;
+    res = await fetch(proxyUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ goal, recentActions, elements, screenshotDataUrl, currentUrl }),
+      signal: controller.signal
+    });
+  } catch (e) {
+    const err = new Error(e && e.name === 'AbortError' ? `Proxy timed out after ${FETCH_TIMEOUT_MS}ms` : `Proxy network error: ${(e && e.message) || 'unknown'}`);
+    err.network = true;
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    const err = new Error(`Proxy ${res.status}: ${errText.slice(0, 200)}`);
+    err.status = res.status;
+    throw err;
+  }
+  const input = await res.json();
+  return {
+    reasoning: sanitize(input.reasoning),
+    message: sanitize(input.message),
+    sgId: typeof input.sgId === 'string' ? input.sgId : '',
+    confidence: typeof input.confidence === 'number' ? input.confidence : 0,
+    status: input.status || 'guiding'
+  };
+}
+
 // goal: { name, objective, successCriteria }
 // recentActions: array of recent message strings already given
 // elements: [{ sgId, tag, visibleText, ariaLabel, placeholder, name }]
 // screenshotDataUrl: "data:image/jpeg;base64,..." (optional but strongly preferred)
-async function analyzeWithClaude({ goal, recentActions, elements, screenshotDataUrl, currentUrl, apiKey }) {
+// proxyUrl/proxySecret: if set, route through the Briolo backend (key stays server-side)
+async function analyzeWithClaude({ goal, recentActions, elements, screenshotDataUrl, currentUrl, apiKey, proxyUrl, proxySecret }) {
+  // Production: proxy mode — no API key in the browser.
+  if (proxyUrl) {
+    return analyzeViaProxy({ goal, recentActions, elements, screenshotDataUrl, currentUrl, proxyUrl, proxySecret });
+  }
+  // Dev fallback: direct call to Anthropic (requires apiKey in the extension).
   const payload = {
     goal: {
       name: goal?.name || '',

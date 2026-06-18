@@ -13,7 +13,9 @@ let state = {
   history: [],          // recent message strings, so Claude doesn't repeat itself
 };
 let goal = null;        // loaded goal definition
-let apiKey = null;
+let apiKey = null;      // dev-mode only: direct Anthropic key (avoid in production)
+let proxyUrl = null;    // production: Briolo backend endpoint (key stays server-side)
+let proxySecret = null; // shared secret sent to the proxy
 
 const lastElements = {}; // tabId → elements[]
 const lastUrl = {};      // tabId → string
@@ -35,22 +37,29 @@ async function loadGoal() {
   } catch (e) { console.error('Screen Guide: failed to load goal', e); }
 }
 
-async function loadApiKey() {
+async function loadConfig() {
   try {
     const stored = await chrome.storage.local.get('claudeApiKey');
-    if (stored.claudeApiKey) { apiKey = stored.claudeApiKey; return; }
+    if (stored.claudeApiKey) apiKey = stored.claudeApiKey;
     const res = await fetch(chrome.runtime.getURL('config.json'));
     if (res.ok) {
       const cfg = await res.json();
-      if (cfg.claudeApiKey) { apiKey = cfg.claudeApiKey; await chrome.storage.local.set({ claudeApiKey: apiKey }); }
+      // Production: proxy config (preferred — no key in the browser).
+      if (cfg.proxyUrl) proxyUrl = cfg.proxyUrl;
+      if (cfg.proxySecret) proxySecret = cfg.proxySecret;
+      // Dev fallback: direct key baked into the build.
+      if (!apiKey && cfg.claudeApiKey) {
+        apiKey = cfg.claudeApiKey;
+        await chrome.storage.local.set({ claudeApiKey: apiKey });
+      }
     }
   } catch (e) {}
 }
 
-chrome.runtime.onInstalled.addListener(() => { loadGoal(); loadApiKey(); });
-chrome.runtime.onStartup.addListener(() => { loadGoal(); loadApiKey(); });
+chrome.runtime.onInstalled.addListener(() => { loadGoal(); loadConfig(); });
+chrome.runtime.onStartup.addListener(() => { loadGoal(); loadConfig(); });
 loadGoal();
-loadApiKey();
+loadConfig();
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
 function pageSignature(url, elements) {
@@ -94,8 +103,9 @@ async function evaluate(tabId, opts) {
   const sig = pageSignature(url, elements);
   if (!force && sig === lastSig[tabId]) return; // nothing meaningful changed
 
-  if (!apiKey || typeof self.analyzeWithClaude !== 'function') {
-    state.lastGuidance = { message: 'AI key not set — add ANTHROPIC_API_KEY and rebuild.', reasoning: '', sgId: '', status: 'blocked', confidence: 0 };
+  const aiReady = (proxyUrl || apiKey) && typeof self.analyzeWithClaude === 'function';
+  if (!aiReady) {
+    state.lastGuidance = { message: 'AI not configured — set a proxy URL or API key and rebuild.', reasoning: '', sgId: '', status: 'blocked', confidence: 0 };
     state.confidence = 0;
     sendGuidance(tabId, state.lastGuidance);
     return;
@@ -116,7 +126,7 @@ async function evaluate(tabId, opts) {
     const result = await Promise.race([
       self.analyzeWithClaude({
         goal, recentActions: state.history, elements,
-        screenshotDataUrl, currentUrl: url, apiKey,
+        screenshotDataUrl, currentUrl: url, apiKey, proxyUrl, proxySecret,
       }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('reasoner timed out')), CLAUDE_TIMEOUT_MS)),
     ]);
@@ -228,7 +238,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       reasoning: g.reasoning || '',
       status: g.status || (state.enabled ? 'guiding' : ''),
       confidence: state.confidence ?? 0,
-      hasApiKey: !!apiKey,
+      hasApiKey: !!(apiKey || proxyUrl),
     });
     return true;
   }
