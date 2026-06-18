@@ -83,6 +83,7 @@ function sendGuidance(tabId, g) {
   chrome.tabs.sendMessage(tabId, {
     type: 'HIGHLIGHT',
     sgId: g.sgId || null,
+    targetText: g.targetText || '',
     instruction: g.message || '',
     stepName: (goal && goal.name) || 'Guidance',
     reasoning: g.reasoning || '',

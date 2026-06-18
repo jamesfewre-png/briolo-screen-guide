@@ -23,6 +23,7 @@ const GUIDANCE_TOOL = {
       reasoning: { type: 'string', description: 'Internal: 1-2 sentences on what you see and why this is the next action.' },
       message: { type: 'string', description: 'What to TELL the user to do next — proactive, specific, friendly. Max 90 chars, plain English, no markdown.' },
       sgId: { type: 'string', description: 'data-sg-id (string) of the element to highlight, or "" if no single element applies.' },
+      targetText: { type: 'string', description: 'The exact visible label of the element to highlight, e.g. "Generate token". Used to locate the element if the id is stale. "" if no single element applies.' },
       confidence: { type: 'number', minimum: 0, maximum: 1 },
       status: { type: 'string', enum: ['guiding', 'wrong-page', 'complete', 'blocked'] }
     }
@@ -42,8 +43,9 @@ Be proactive, not passive:
 
 Choosing the element:
 - Pick the sgId of the ONE element the user should interact with next, matching what you SEE in the screenshot.
-- If the next action is to type into a field, point to that field's sgId and tell them what to type (never type or click for them).
-- If no single element applies, set sgId "" and explain in the message.
+- ALSO set targetText to that element's exact visible label (e.g. "Generate token", "System users") so it can be located even if the id is stale. Almost every guiding step has a clickable target — set both sgId and targetText whenever you reference a button, link, tab, or field.
+- If the next action is to type into a field, point to that field's sgId/targetText and tell them what to type (never type or click for them).
+- Only if NO single element applies (pure navigation away from this page, or reading) set sgId "" and targetText "".
 
 Hard rules (non-negotiable):
 - NEVER instruct in a way that assumes you clicked — the human does every click and keystroke.
@@ -151,6 +153,7 @@ module.exports = async function handler(req, res) {
       reasoning: sanitize(input.reasoning),
       message: sanitize(input.message),
       sgId: typeof input.sgId === 'string' ? input.sgId : '',
+      targetText: typeof input.targetText === 'string' ? sanitize(input.targetText) : '',
       confidence: typeof input.confidence === 'number' ? input.confidence : 0,
       status: input.status || 'guiding'
     });

@@ -201,6 +201,33 @@
     if (hlEl) hlEl.style.display = 'none';
   }
 
+  // Locate a visible, interactive element by its label — the fallback when the
+  // data-sg-id is stale/missing. Exact label match wins; otherwise the shortest
+  // containing text (most precise). Skips our own guide UI.
+  function findByText(text) {
+    const needle = (text || '').trim().toLowerCase();
+    if (!needle) return null;
+    const SEL = 'button, a[href], [role="button"], [role="link"], [role="tab"], [role="menuitem"], input, textarea, select, [aria-label]';
+    let best = null, bestScore = 0;
+    let nodes;
+    try { nodes = document.querySelectorAll(SEL); } catch (_) { return null; }
+    for (const el of nodes) {
+      if (el.id === '__sg_highlight') continue;
+      try { if (el.closest && (el.closest('.driver-popover') || el.id === '__sg_tip')) continue; } catch (_) {}
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+      const vt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const al = (el.getAttribute('aria-label') || '').toLowerCase();
+      let score = 0;
+      if (vt === needle || al === needle) score = 6;
+      else if (vt.includes(needle) || al.includes(needle)) score = 3 - Math.min(2, Math.floor(vt.length / 40));
+      if (score > bestScore) { bestScore = score; best = el; }
+    }
+    return bestScore > 0 ? best : null;
+  }
+
   // ── Completion tracking ───────────────────────────────────────────────────
   // Clicks complete a step. For input/textarea/select targets (which the user
   // TYPES into rather than clicks), a committed value change also completes the
@@ -245,21 +272,23 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'HIGHLIGHT') {
       clearTip();
+      // 1) Try the exact element by id. 2) Fall back to locating it by its visible
+      // label (targetText) — robust to stale ids. 3) Otherwise show a tip.
+      let el = null;
       if (msg.sgId !== null && msg.sgId !== undefined && msg.sgId !== '') {
-        const el = document.querySelector('[data-sg-id="' + msg.sgId + '"]');
-        try { console.log('[ScreenGuide] HIGHLIGHT sgId=' + msg.sgId, 'found=' + !!el); } catch (_) {}
-        // Verify the element still exists in the live DOM before highlighting.
-        if (el && document.contains(el)) {
-          scrollIntoViewIfNeeded(el);
-          showHighlight(el);          // glowing, pulsing ring that tracks the element
-          attachClickCompletion(el);
-          return;
-        }
-      } else {
-        try { console.log('[ScreenGuide] HIGHLIGHT with no sgId (nav/type step)'); } catch (_) {}
+        el = document.querySelector('[data-sg-id="' + msg.sgId + '"]');
       }
-      // No element to point at (navigation/type step, or it was removed) — clear
-      // the ring and show the instruction as a tip instead.
+      if ((!el || !document.contains(el)) && msg.targetText) {
+        el = findByText(msg.targetText);
+      }
+      try { console.log('[ScreenGuide] HIGHLIGHT sgId=' + msg.sgId + ' targetText="' + (msg.targetText || '') + '" resolved=' + !!el); } catch (_) {}
+      if (el && document.contains(el)) {
+        scrollIntoViewIfNeeded(el);
+        showHighlight(el);          // glowing, pulsing ring that tracks the element
+        attachClickCompletion(el);
+        return;
+      }
+      // Nothing to point at (true navigation/read step) — clear ring, show tip.
       clearHighlight();
       showTip(msg.fallback || msg.instruction || 'Follow the guidance in the panel');
     }

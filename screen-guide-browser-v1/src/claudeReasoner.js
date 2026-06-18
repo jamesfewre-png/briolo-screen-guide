@@ -33,6 +33,10 @@ const GUIDANCE_TOOL = {
         type: 'string',
         description: 'The data-sg-id (as a string) of the element to highlight for this action, or "" if no single element applies (e.g. the user must navigate or type).'
       },
+      targetText: {
+        type: 'string',
+        description: 'The exact visible label of the element to highlight, e.g. "Generate token". Used to locate the element if the id is stale. "" if no single element applies.'
+      },
       confidence: {
         type: 'number',
         minimum: 0,
@@ -61,7 +65,8 @@ Be proactive, not passive:
 
 Choosing the element:
 - Pick the sgId of the ONE element the user should interact with next. Match it to what you SEE in the screenshot, using the elements list to get its sgId.
-- If the next action is to type into a field, point to that field's sgId and tell them what to type (never type or click for them).
+- ALSO set targetText to that element's exact visible label (e.g. "Generate token", "System users") so it can be located even if the id is stale. Set both sgId and targetText whenever you reference a button, link, tab, or field.
+- If the next action is to type into a field, point to that field's sgId/targetText and tell them what to type (never type or click for them).
 - If no single element applies (e.g. they must scroll, navigate, or read), set sgId "" and explain in the message.
 
 Hard rules (non-negotiable):
@@ -155,6 +160,7 @@ async function analyzeViaProxy({ goal, recentActions, elements, screenshotDataUr
     reasoning: sanitize(input.reasoning),
     message: sanitize(input.message),
     sgId: typeof input.sgId === 'string' ? input.sgId : '',
+    targetText: typeof input.targetText === 'string' ? sanitize(input.targetText) : '',
     confidence: typeof input.confidence === 'number' ? input.confidence : 0,
     status: input.status || 'guiding'
   };
@@ -233,6 +239,7 @@ async function analyzeWithClaude({ goal, recentActions, elements, screenshotData
     reasoning: sanitize(input.reasoning),
     message: sanitize(input.message),
     sgId: typeof input.sgId === 'string' ? input.sgId : '',
+    targetText: typeof input.targetText === 'string' ? sanitize(input.targetText) : '',
     confidence: typeof input.confidence === 'number' ? input.confidence : 0,
     status: input.status || 'guiding'
   };
