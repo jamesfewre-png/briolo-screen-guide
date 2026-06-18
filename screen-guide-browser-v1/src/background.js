@@ -234,11 +234,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // A fresh content script announced itself (page load / refresh). Re-draw the
-  // current highlight immediately, then re-evaluate in case the page changed.
+  // A fresh content script announced itself (page load / refresh). Clear any
+  // stale ring from the previous page and re-evaluate — never re-draw lastGuidance
+  // here, because it belongs to the old page and would look like a "random ring".
   if (msg.type === 'CONTENT_READY') {
     if (tabId && state.enabled && !state.completed) {
-      if (state.lastGuidance) setTimeout(() => sendGuidance(tabId, state.lastGuidance), 250);
+      chrome.tabs.sendMessage(tabId, { type: 'CLEAR' }).catch(() => {});
       lastSig[tabId] = '';
       scheduleEvaluate(tabId, 600, { force: true });
     }
@@ -279,6 +280,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'PAGE_STATE') {
     if (tabId) {
       lastElements[tabId] = msg.elements || [];
+      // If the URL changed (SPA navigation), clear any stale ring immediately
+      // so the user never sees a ring for the old page while Claude re-evaluates.
+      if (msg.url && msg.url !== lastUrl[tabId]) {
+        chrome.tabs.sendMessage(tabId, { type: 'CLEAR' }).catch(() => {});
+      }
       if (msg.url) lastUrl[tabId] = msg.url;
       // Re-evaluate when the page settles (debounced + signature-guarded so our
       // own highlight or idle mutations don't trigger needless Claude calls).
@@ -292,8 +298,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // ── Navigation: full page loads trigger a fresh evaluation ──────────────────────
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && state.enabled && !state.completed) {
+    // Full navigation — clear any stale ring before re-evaluating.
+    chrome.tabs.sendMessage(tabId, { type: 'CLEAR' }).catch(() => {});
     if (tab.url) lastUrl[tabId] = tab.url;
-    lastSig[tabId] = ''; // URL changed — definitely re-evaluate
+    lastSig[tabId] = '';
     scheduleEvaluate(tabId);
   }
 });

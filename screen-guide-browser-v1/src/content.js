@@ -10,7 +10,7 @@
   // Diagnostic: confirms THIS (fresh) content script is live on the page. If you
   // reload the extension you MUST refresh the page — otherwise the old orphaned
   // script runs and highlights never appear.
-  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.4', { top: IS_TOP, url: location.href }); } catch (_) {}
+  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.5', { top: IS_TOP, url: location.href }); } catch (_) {}
 
   // Driver.js v1 IIFE exports window.driver.js.driver (factory fn, not class)
   const driverFactory = (typeof window !== 'undefined' && window.driver && window.driver.js)
