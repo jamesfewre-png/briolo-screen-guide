@@ -138,9 +138,15 @@ async function evaluate(tabId, opts) {
     pendingAi[tabId] = false;
     state.thinking = false;
     console.warn('Screen Guide: reasoner failed:', err.message);
-    // Allow a retry on the next change by clearing the signature.
-    lastSig[tabId] = '';
-    if (state.lastGuidance) sendGuidance(tabId, state.lastGuidance);
+    lastSig[tabId] = ''; // allow a retry on the next change
+    // Surface the failure so the panel never silently sticks on "getting bearings".
+    state.confidence = 0;
+    state.lastGuidance = {
+      message: 'I could not reach Claude just now. Tap "I\'m Stuck" to retry.',
+      reasoning: 'Reasoner error: ' + (err.message || 'unknown'),
+      sgId: '', status: 'blocked', confidence: 0,
+    };
+    sendGuidance(tabId, state.lastGuidance);
   }
 }
 

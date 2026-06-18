@@ -87,7 +87,10 @@ async function attemptFetch(body, apiKey) {
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
+        // Required to call the API from a browser/extension origin — without this
+        // Anthropic's CORS policy rejects the request. (Node/CLI doesn't need it.)
+        'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify(body),
       signal: controller.signal
