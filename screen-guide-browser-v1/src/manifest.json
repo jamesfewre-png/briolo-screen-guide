@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Screen Guide",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Proactive AI onboarding guide — watches the page and points you to the next action",
   "permissions": ["sidePanel", "tabs", "storage", "activeTab"],
   "host_permissions": ["<all_urls>"],

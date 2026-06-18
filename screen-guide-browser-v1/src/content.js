@@ -10,7 +10,7 @@
   // Diagnostic: confirms THIS (fresh) content script is live on the page. If you
   // reload the extension you MUST refresh the page — otherwise the old orphaned
   // script runs and highlights never appear.
-  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.1', { top: IS_TOP, url: location.href }); } catch (_) {}
+  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.2', { top: IS_TOP, url: location.href }); } catch (_) {}
 
   // Driver.js v1 IIFE exports window.driver.js.driver (factory fn, not class)
   const driverFactory = (typeof window !== 'undefined' && window.driver && window.driver.js)
@@ -222,10 +222,12 @@
         if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'svg' || tag === 'path' || tag === 'SVG' || tag === 'PATH') continue;
         if (el.id === '__sg_highlight') continue;
         const raw = el.textContent;
-        // Skip empty and big containers fast — a label is short, so this both
-        // avoids matching wrapper groups and keeps the scan cheap.
-        if (!raw || raw.length > 200) continue;
-        const vt = raw.replace(/\s+/g, ' ').trim().toLowerCase();
+        // Pre-filter: skip truly enormous containers (> 1000 chars) for speed.
+        // Use innerText for the actual match — it excludes visually-hidden aria
+        // spans (which Meta injects), so "System users" matches the leaf link
+        // even though that link's textContent may be much longer.
+        if (!raw || raw.length > 1000) continue;
+        const vt = ((el.innerText != null ? el.innerText : raw) || '').replace(/\s+/g, ' ').trim().toLowerCase();
         if (!vt) continue;
         const isExact = (vt === needle) || (needle.includes(vt) && vt.length >= 3);
         const isContains = !isExact && vt.includes(needle);
