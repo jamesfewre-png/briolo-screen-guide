@@ -1,65 +1,79 @@
 {
   "id": "meta-connect-assets",
   "name": "Connect Meta Business Assets",
-  "description": "Guide user through connecting Meta/Facebook business assets to their dashboard.",
+  "description": "Guide user through generating a System User access token in Meta Business Suite.",
   "steps": [
     {
       "id": "confirm-logged-in",
-      "instruction": "Make sure you are logged in to Meta Business Suite.",
+      "instruction": "Make sure you are on Meta Business Suite.",
       "targetUrl": "https://business.facebook.com",
-      "expectedDomains": ["business.facebook.com", "facebook.com"],
-      "targetLabels": ["Business Suite", "Business Manager", "Business Settings"],
+      "expectedDomains": ["business.facebook.com"],
+      "targetLabels": ["Business Suite", "Business Settings", "Settings"],
       "completionSignals": {
-        "urlContains": ["business.facebook.com"],
-        "textPresent": ["Business Manager", "Business Settings", "People", "Accounts"]
+        "urlContains": ["business.facebook.com"]
       },
-      "fallback": "Go to business.facebook.com and log in with your business Facebook account."
+      "fallback": "Go to business.facebook.com and log in with your business account."
     },
     {
       "id": "open-business-settings",
-      "instruction": "Click Business Settings in the left sidebar.",
+      "instruction": "Click the Settings icon in the left sidebar.",
       "targetUrl": "https://business.facebook.com/latest/settings/",
       "expectedDomains": ["business.facebook.com"],
-      "targetLabels": ["Business Settings"],
+      "targetLabels": ["Settings", "Business Settings"],
       "completionSignals": {
-        "urlContains": ["/settings/"],
-        "textPresent": ["Business Settings", "Business Portfolio", "People and Assets"]
+        "urlContains": ["/settings/"]
       },
-      "fallback": "Look for Business Settings in the left navigation panel."
+      "fallback": "Look for a Settings or gear icon in the left navigation bar."
     },
     {
-      "id": "open-apps",
-      "instruction": "In the left sidebar, click Connected apps.",
-      "targetUrl": "https://business.facebook.com/latest/settings/integration/",
+      "id": "navigate-to-system-users",
+      "instruction": "In the left sidebar, click Users then System Users.",
+      "targetUrl": "https://business.facebook.com/latest/settings/users/system_users/",
       "expectedDomains": ["business.facebook.com"],
-      "targetLabels": ["Connected apps", "Apps", "Integrations", "Business Apps"],
+      "targetLabels": ["System users", "System Users"],
       "completionSignals": {
-        "urlContains": ["/integration/", "/apps/"],
-        "textPresent": ["Connected apps", "Add connected app", "Business Apps"]
+        "urlContains": ["/system_users", "/system-users"],
+        "textPresent": ["System users", "Add", "Generate New Token"]
       },
-      "fallback": "In Business Settings left sidebar, scroll down to find Connected apps."
+      "fallback": "Under Users in the left sidebar, click System Users."
     },
     {
-      "id": "find-token-area",
-      "instruction": "Find the access token or developer credentials section.",
-      "targetLabels": ["Access Token", "Generate Token", "Developer", "Token"],
-      "fallback": "Look for Developer or Token in the current section. You may need to scroll."
+      "id": "add-system-user",
+      "instruction": "Click Add to create a new system user.",
+      "targetUrl": "https://business.facebook.com/latest/settings/users/system_users/",
+      "expectedDomains": ["business.facebook.com"],
+      "targetLabels": ["Add", "Create system user", "New system user"],
+      "completionSignals": {
+        "textPresent": ["Employee", "Admin", "Create system user", "Generate New Token"]
+      },
+      "fallback": "Click the Add button to create a system user, or select your existing one."
+    },
+    {
+      "id": "generate-token",
+      "instruction": "Click Generate New Token on the system user.",
+      "expectedDomains": ["business.facebook.com"],
+      "targetLabels": ["Generate New Token", "Generate token", "Generate"],
+      "completionSignals": {
+        "textPresent": ["Your new access token", "Copy", "access token"]
+      },
+      "fallback": "Select your system user then click Generate New Token."
     },
     {
       "id": "copy-token",
-      "instruction": "When the token is visible, copy it manually. Do not share it with anyone.",
-      "targetLabels": ["Copy", "Generate", "Generate Token"],
+      "instruction": "Copy the token. Never share it — paste it only in your dashboard.",
+      "expectedDomains": ["business.facebook.com"],
+      "targetLabels": ["Copy", "Copy token"],
       "completionSignals": {
-        "textPresent": ["Copied", "Token copied"]
+        "textPresent": ["Copied"]
       },
-      "fallback": "Click Generate or Copy when the token appears, then copy it manually."
+      "fallback": "Click Copy next to the access token, then switch to your dashboard."
     },
     {
-      "id": "return-to-dashboard",
-      "instruction": "Return to your AI Flow dashboard and paste the token in the field shown.",
-      "expectedDomains": ["localhost", "aiflowsystems", "app."],
-      "targetLabels": ["Paste token", "Access token", "API key"],
-      "fallback": "Switch back to your dashboard tab and find the token input field."
+      "id": "paste-in-dashboard",
+      "instruction": "Paste the token in the field shown in your dashboard.",
+      "expectedDomains": ["localhost", "briolo.io", "aiflowsystems"],
+      "targetLabels": ["Access token", "Paste token", "API key", "Token"],
+      "fallback": "Switch to your Briolo dashboard tab and paste the token in the input shown."
     }
   ]
 }

@@ -1,0 +1,69 @@
+{
+  "id": "meta-connect-assets",
+  "name": "Connect Meta Business Assets",
+  "steps": [
+    {
+      "id": "open-meta",
+      "name": "Open Meta Business Suite",
+      "instruction": "Go to business.facebook.com/latest/settings",
+      "targetText": null,
+      "targetTag": null,
+      "completionUrlPattern": "business\\.facebook\\.com",
+      "fallback": "Open business.facebook.com in this tab"
+    },
+    {
+      "id": "business-settings",
+      "name": "Business Settings",
+      "instruction": "Click Business Settings in sidebar",
+      "targetText": "Business Settings",
+      "targetTag": "a",
+      "completionUrlPattern": "settings",
+      "fallback": "Look for Business Settings in the left nav"
+    },
+    {
+      "id": "system-users",
+      "name": "System Users",
+      "instruction": "Click System users",
+      "targetText": "System users",
+      "targetTag": "a",
+      "completionUrlPattern": "system_users",
+      "fallback": "Under Users section, find System users"
+    },
+    {
+      "id": "add-system-user",
+      "name": "Add System User",
+      "instruction": "Click Add or New to create a system user",
+      "targetText": "Add",
+      "targetTag": "button",
+      "completionUrlPattern": "system_users",
+      "fallback": "Find an Add or New button on this page"
+    },
+    {
+      "id": "generate-token",
+      "name": "Generate Token",
+      "instruction": "Click Generate New Token",
+      "targetText": "Generate New Token",
+      "targetTag": "button",
+      "completionUrlPattern": "system_users",
+      "fallback": "Find the Generate New Token button"
+    },
+    {
+      "id": "copy-token",
+      "name": "Copy Token",
+      "instruction": "Copy the access token shown",
+      "targetText": "Copy",
+      "targetTag": "button",
+      "completionUrlPattern": "system_users",
+      "fallback": "Copy the access token to your clipboard"
+    },
+    {
+      "id": "verify",
+      "name": "Verify in Briolo",
+      "instruction": "Paste token in your Briolo dashboard",
+      "targetText": null,
+      "targetTag": null,
+      "completionUrlPattern": "briolo\\.io|localhost",
+      "fallback": "Go to your Briolo dashboard and paste the token"
+    }
+  ]
+}

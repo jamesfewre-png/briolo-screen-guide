@@ -73,7 +73,12 @@ Rules:
 - When DOM data provides a screenRect, use type "dom-highlight". Set source to "level-3-dom-aware".
 - Only use type "callout" as a last resort when you cannot determine pixel coordinates at all.
 - Never instruct the user to navigate or switch tabs in overlay.message — navigation is handled separately.
-- highlight coordinates must be a TIGHT bounding box around the single target element only — do not pad or expand to include neighbouring elements.`;
+- highlight coordinates must be a TIGHT bounding box around the single target element only — do not pad or expand to include neighbouring elements.
+- The bottom 8% of the screenshot is blacked out and contains NO page content — ignore it entirely. Never place a highlight in that region. It is the overlay UI, not the guided page.
+- If the step targets "System users": look for that exact text link in the left sidebar under the "Users" section. It is a text link, NOT a button.
+- If the step targets "Generate New Token": look for a button or link with that exact text on the system user's detail page. Do NOT highlight anything on the Connected apps page — that page has no token generation.
+- If the DOM elements list is empty or has no element matching the step target: set confidence < 0.45 and status "unsure". Do not guess a random element.
+- Only highlight an element if you have HIGH confidence (≥ 0.7) it is the correct target for this specific step. If unsure, use type "message" to describe what the user should look for.`;
 
 function trimPageStateForModel(pageState) {
   if (!pageState) return null;

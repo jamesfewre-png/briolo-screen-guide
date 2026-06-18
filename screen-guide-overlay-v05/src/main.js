@@ -159,6 +159,12 @@ function startBridgeServer() {
       return;
     }
 
+    if (req.method === 'GET' && req.url === '/guidance') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, guidance: latestGuidance }));
+      return;
+    }
+
     if (req.method === 'POST' && req.url === '/page-state') {
       let body = '';
       req.on('data', chunk => { body += chunk.toString(); if (body.length > 2000000) req.destroy(); });

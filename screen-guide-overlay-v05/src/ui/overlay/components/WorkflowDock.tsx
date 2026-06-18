@@ -63,7 +63,7 @@ export function WorkflowDock({ steps }: Props) {
                 animate={step.state === 'active' ? { scale: [1, 1.06, 1] } : {}}
                 transition={{ duration: 1.6, repeat: Infinity }}
               >
-                {step.state === 'done' ? 'âœ“' : i + 1}
+                {i + 1}
               </motion.div>
               <span
                 style={{

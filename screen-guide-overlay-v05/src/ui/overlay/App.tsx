@@ -38,7 +38,9 @@ export function App() {
     window.overlayBridge.onUpdate((p) => setPayload(p || { type: 'clear' }))
   }, [isMock])
 
-  const hasHighlight = payload.type !== 'clear' && payload.highlight
+  // dom-highlight: extension draws it in-page via CSS — no Electron overlay ring needed.
+  // vision-highlight / callout: Electron overlay draws it (no DOM selector available).
+  const hasHighlight = payload.type === 'vision-highlight' && payload.highlight
   const stepIdx = payload.stepIndex ?? 0
   const totalSteps = payload.totalSteps ?? 7
 

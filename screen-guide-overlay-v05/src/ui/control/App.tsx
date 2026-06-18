@@ -6,13 +6,13 @@ import { AssistantCoachCard } from "./components/AssistantCoachCard"
 import { StatusToast } from "./components/StatusToast"
 
 const STEP_LABELS = [
-  "Open Meta Business Suite",
-  "Find Business Settings",
-  "Go to Integrations",
+  "Open Business Suite",
+  "Open Settings",
+  "System Users",
+  "Add System User",
   "Generate Token",
   "Copy Token",
-  "Paste in Your Dashboard",
-  "Verify Connection",
+  "Paste in Dashboard",
 ]
 
 const INITIAL: ControlState = {
@@ -35,6 +35,7 @@ export function App() {
   const [toast, setToast] = useState<string | null>(null)
   const [debugData, setDebugData] = useState<string>("")
   const [showDebug, setShowDebug] = useState(false)
+  const [chromeMetrics, setChromeMetrics] = useState<Record<string, unknown> | null>(null)
 
   const streamRef = useRef<MediaStream | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -53,6 +54,7 @@ export function App() {
       const connected = Boolean(data?.state)
       const count = Array.isArray(data?.state?.elements) ? (data.state.elements as unknown[]).length : 0
       setState(s => ({ ...s, helperConnected: connected, elementCount: count }))
+      if (data?.state?.windowMetrics) setChromeMetrics(data.state.windowMetrics as Record<string, unknown>)
     })
     window.screenGuide.onWorkflowStepChange(({ step, index, total }) => {
       setState(s => ({ ...s, stepInstruction: step?.instruction ?? s.stepInstruction, stepIndex: index, totalSteps: total }))
@@ -84,7 +86,13 @@ export function App() {
     const scale = Math.min(1, 800 / video.videoWidth)
     canvas.width = Math.round(video.videoWidth * scale)
     canvas.height = Math.round(video.videoHeight * scale)
-    canvas.getContext("2d")!.drawImage(video, 0, 0, canvas.width, canvas.height)
+    const ctx = canvas.getContext("2d")!
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    // Mask bottom 8% of frame — WorkflowDock renders there; without masking the AI
+    // targets dock step nodes instead of actual page elements.
+    const maskH = Math.round(canvas.height * 0.08)
+    ctx.fillStyle = "#000000"
+    ctx.fillRect(0, canvas.height - maskH, canvas.width, maskH)
     return { dataUrl: canvas.toDataURL("image/jpeg", 0.40), w: canvas.width, h: canvas.height }
   }
 
@@ -176,9 +184,26 @@ export function App() {
           {showDebug ? "▾ Hide debug" : "▸ Show debug"}
         </button>
         {showDebug && (
-          <pre style={{ fontSize: 10, color: "#8a96ac", background: "#171b24", border: "1px solid #252b3a", borderRadius: 8, padding: 10, maxHeight: 160, overflow: "auto", whiteSpace: "pre-wrap" }}>
+          <pre style={{ fontSize: 10, color: "#8a96ac", background: "#171b24", border: "1px solid #252b3a", borderRadius: 8, padding: 10, maxHeight: 200, overflow: "auto", whiteSpace: "pre-wrap" }}>
             {debugData || "Idle."}
           </pre>
+        )}
+        {showDebug && chromeMetrics && (
+          <div style={{ fontSize: 10, color: "#6b7280", padding: "6px 10px", background: "#0f1117", border: "1px solid #1e2535", borderRadius: 8 }}>
+            <strong style={{ color: "#ff8a00" }}>Chrome window metrics (from extension):</strong><br />
+            {(() => {
+              const o = chromeMetrics.outer as Record<string, number>
+              const i = chromeMetrics.inner as Record<string, number>
+              const vp = chromeMetrics.estimatedViewportOnScreen as Record<string, number>
+              const dpr = chromeMetrics.devicePixelRatio as number
+              return <>
+                screenY={o.y} outerH={o.height} innerH={i.height} DPR={dpr}<br />
+                chromeH=outerH-innerH={o.height - i.height}<br />
+                <strong style={{ color: "#2dd47e" }}>vpY={vp.y}</strong> (should equal browser chrome bar height on screen)<br />
+                <strong style={{ color: "#2dd47e" }}>vpX={vp.x}</strong>
+              </>
+            })()}
+          </div>
         )}
       </div>
       <AnimatePresence>

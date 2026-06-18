@@ -1,0 +1,16 @@
+{
+  "name": "screen-guide-browser-v1",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.cjs",
+    "dev": "node build.cjs && echo 'Reload the extension in chrome://extensions'"
+  },
+  "dependencies": {
+    "driver.js": "^1.4.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "typescript": "^5.3.3"
+  }
+}
