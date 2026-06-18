@@ -233,6 +233,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // A fresh content script announced itself (page load / refresh). Re-draw the
+  // current highlight immediately, then re-evaluate in case the page changed.
+  if (msg.type === 'CONTENT_READY') {
+    if (tabId && state.enabled && !state.completed) {
+      if (state.lastGuidance) setTimeout(() => sendGuidance(tabId, state.lastGuidance), 250);
+      lastSig[tabId] = '';
+      scheduleEvaluate(tabId, 600, { force: true });
+    }
+    sendResponse({ ok: true });
+    return true;
+  }
+
   // "I'm stuck" — force a fresh evaluation of the current screen.
   if (msg.type === 'STUCK') {
     activeTabThen(id => { lastSig[id] = ''; evaluate(id, { force: true }); });

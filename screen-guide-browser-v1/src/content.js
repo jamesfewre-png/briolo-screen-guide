@@ -337,6 +337,11 @@
     } catch (_) {}
   }
 
+  // Announce that a FRESH content script is live on this page, so the background
+  // immediately re-draws the current highlight here (recovers after a refresh /
+  // extension reload, instead of leaving a stale ring from an orphaned script).
+  try { chrome.runtime.sendMessage({ type: 'CONTENT_READY' }, () => void chrome.runtime.lastError); } catch (_) {}
+
   sendState();
 
   // ── Re-scan on DOM changes (debounced, top frame only) ─────────────────────
