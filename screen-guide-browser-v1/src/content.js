@@ -10,7 +10,7 @@
   // Diagnostic: confirms THIS (fresh) content script is live on the page. If you
   // reload the extension you MUST refresh the page — otherwise the old orphaned
   // script runs and highlights never appear.
-  try { console.log('[ScreenGuide] content script loaded', { top: IS_TOP, url: location.href }); } catch (_) {}
+  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.0', { top: IS_TOP, url: location.href }); } catch (_) {}
 
   // Driver.js v1 IIFE exports window.driver.js.driver (factory fn, not class)
   const driverFactory = (typeof window !== 'undefined' && window.driver && window.driver.js)
@@ -305,6 +305,7 @@
       }
       try { console.log('[ScreenGuide] HIGHLIGHT sgId=' + msg.sgId + ' targetText="' + (msg.targetText || '') + '" resolved=' + !!el); } catch (_) {}
       if (el && document.contains(el)) {
+        try { console.log('[ScreenGuide] highlighting <' + el.tagName.toLowerCase() + '> "' + (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40) + '"'); } catch (_) {}
         scrollIntoViewIfNeeded(el);
         showHighlight(el);          // glowing, pulsing ring that tracks the element
         attachClickCompletion(el);
