@@ -133,6 +133,69 @@
     } catch (_) {}
   }
 
+  // ── Animated highlight ring ────────────────────────────────────────────────
+  // A glowing, pulsing ring drawn over the target element. pointer-events:none so
+  // the human can still click straight through it. It tracks the element via rAF,
+  // so it stays glued to the target during scroll and layout changes.
+  let hlEl = null;       // the ring node
+  let hlTarget = null;   // the element being highlighted
+  let hlRaf = null;      // requestAnimationFrame handle
+
+  function ensureHighlightNodes() {
+    if (!document.getElementById('__sg_hl_style')) {
+      const st = document.createElement('style');
+      st.id = '__sg_hl_style';
+      st.textContent =
+        '@keyframes __sg_pulse{' +
+        '0%,100%{box-shadow:0 0 0 3px rgba(255,138,0,.40),0 0 14px 3px rgba(255,138,0,.45)}' +
+        '50%{box-shadow:0 0 0 7px rgba(255,138,0,.18),0 0 30px 10px rgba(255,138,0,.85)}}';
+      document.documentElement.appendChild(st);
+    }
+    if (!hlEl) {
+      hlEl = document.createElement('div');
+      hlEl.id = '__sg_highlight';
+      hlEl.style.cssText = [
+        'position:fixed', 'z-index:2147483646', 'pointer-events:none',
+        'box-sizing:border-box', 'border:3px solid #ff8a00', 'border-radius:8px',
+        'background:rgba(255,138,0,0.08)',
+        'transition:top .12s ease,left .12s ease,width .12s ease,height .12s ease',
+        'animation:__sg_pulse 1.25s ease-in-out infinite', 'display:none'
+      ].join(';');
+      document.documentElement.appendChild(hlEl);
+    }
+  }
+
+  function positionHighlight() {
+    if (!hlTarget || !hlEl) return;
+    if (!document.contains(hlTarget)) { clearHighlight(); return; }
+    const r = hlTarget.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) { hlEl.style.display = 'none'; return; }
+    const pad = 4;
+    hlEl.style.display = 'block';
+    hlEl.style.top = (r.top - pad) + 'px';
+    hlEl.style.left = (r.left - pad) + 'px';
+    hlEl.style.width = (r.width + pad * 2) + 'px';
+    hlEl.style.height = (r.height + pad * 2) + 'px';
+  }
+
+  function trackHighlight() {
+    positionHighlight();
+    hlRaf = requestAnimationFrame(trackHighlight);
+  }
+
+  function showHighlight(el) {
+    ensureHighlightNodes();
+    hlTarget = el;
+    positionHighlight();
+    if (!hlRaf) trackHighlight();
+  }
+
+  function clearHighlight() {
+    hlTarget = null;
+    if (hlRaf) { cancelAnimationFrame(hlRaf); hlRaf = null; }
+    if (hlEl) hlEl.style.display = 'none';
+  }
+
   // ── Completion tracking ───────────────────────────────────────────────────
   // Clicks complete a step. For input/textarea/select targets (which the user
   // TYPES into rather than clicks), a committed value change also completes the
@@ -177,52 +240,29 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'HIGHLIGHT') {
       clearTip();
-      if (msg.sgId !== null && msg.sgId !== undefined) {
+      if (msg.sgId !== null && msg.sgId !== undefined && msg.sgId !== '') {
         const el = document.querySelector('[data-sg-id="' + msg.sgId + '"]');
-        // Verify the element still exists in the live DOM before highlighting /
-        // attaching a click listener — it may have been removed since the scan.
+        // Verify the element still exists in the live DOM before highlighting.
         if (el && document.contains(el)) {
           scrollIntoViewIfNeeded(el);
-          if (driverInstance) {
-            try {
-              driverInstance.highlight({
-                element: el,
-                popover: {
-                  title: msg.stepName || 'Next Step',
-                  description: msg.instruction || '',
-                  side: 'bottom',
-                  align: 'start',
-                }
-              });
-            } catch (_) {
-              el.style.outline = '3px solid #ff8a00';
-              el.style.outlineOffset = '2px';
-              showTip(msg.instruction);
-            }
-          } else {
-            // No driver.js available — outline + tip fallback.
-            try {
-              el.style.outline = '3px solid #ff8a00';
-              el.style.outlineOffset = '2px';
-            } catch (_) {}
-            showTip(msg.instruction || 'Click the highlighted item');
-          }
+          showHighlight(el);          // glowing, pulsing ring that tracks the element
           attachClickCompletion(el);
           return;
         }
       }
-      // No element found (or it was removed) — show tip.
-      if (driverInstance) try { driverInstance.destroy(); } catch (_) {}
-      showTip(msg.fallback || msg.instruction || 'Scroll to find the next step');
+      // No element to point at (navigation/type step, or it was removed) — clear
+      // the ring and show the instruction as a tip instead.
+      clearHighlight();
+      showTip(msg.fallback || msg.instruction || 'Follow the guidance in the panel');
     }
 
     if (msg.type === 'SHOW_TIP') {
-      if (driverInstance) try { driverInstance.destroy(); } catch (_) {}
+      clearHighlight();
       showTip(msg.text);
     }
 
     if (msg.type === 'CLEAR') {
-      if (driverInstance) try { driverInstance.destroy(); } catch (_) {}
+      clearHighlight();
       clearTip();
     }
   });
