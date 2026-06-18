@@ -225,10 +225,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // User clicked any interactive element (e.g. expanded a menu) — re-evaluate the
-  // screen automatically so guidance advances without pressing "I've done this".
+  // User clicked any interactive element (e.g. expanded a menu) — clear the ring
+  // immediately (visual feedback that the AI noticed) then re-evaluate.
   if (msg.type === 'USER_ACTED') {
-    if (tabId) scheduleEvaluate(tabId, POST_ACTION_MS, { force: true });
+    if (tabId) {
+      chrome.tabs.sendMessage(tabId, { type: 'CLEAR' }).catch(() => {});
+      scheduleEvaluate(tabId, POST_ACTION_MS, { force: true });
+    }
     sendResponse({ ok: true });
     return true;
   }

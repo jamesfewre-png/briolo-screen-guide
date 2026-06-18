@@ -10,7 +10,7 @@
   // Diagnostic: confirms THIS (fresh) content script is live on the page. If you
   // reload the extension you MUST refresh the page — otherwise the old orphaned
   // script runs and highlights never appear.
-  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.2', { top: IS_TOP, url: location.href }); } catch (_) {}
+  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.3', { top: IS_TOP, url: location.href }); } catch (_) {}
 
   // Driver.js v1 IIFE exports window.driver.js.driver (factory fn, not class)
   const driverFactory = (typeof window !== 'undefined' && window.driver && window.driver.js)
@@ -244,13 +244,17 @@
     }
     let el = exact || contains;
     if (!el) return null;
-    // Climb to the nearest clickable ancestor, but only if it's not >4x bigger
-    // (prevents grabbing the whole nav group when the leaf is a span/text node).
+    // Climb to the nearest clickable ancestor ONLY if the leaf element itself is
+    // not already a native interactive element. This prevents an <a>System users</a>
+    // from climbing to a parent wrapper and looking like the wrong element.
     try {
-      const clk = el.closest && el.closest('a,button,[role="button"],[role="link"],[role="menuitem"],[role="tab"],[tabindex]');
-      if (clk && clk !== el) {
-        const er = el.getBoundingClientRect(), cr = clk.getBoundingClientRect();
-        if ((cr.width * cr.height) <= (er.width * er.height) * 4) el = clk;
+      const isNative = /^(A|BUTTON|INPUT|TEXTAREA|SELECT)$/i.test(el.tagName);
+      if (!isNative) {
+        const clk = el.closest && el.closest('a,button,[role="button"],[role="link"],[role="menuitem"],[role="tab"]');
+        if (clk && clk !== el) {
+          const er = el.getBoundingClientRect(), cr = clk.getBoundingClientRect();
+          if ((cr.width * cr.height) <= (er.width * er.height) * 2) el = clk;
+        }
       }
     } catch (_) {}
     return el;
