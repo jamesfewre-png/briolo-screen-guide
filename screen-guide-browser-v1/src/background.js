@@ -225,13 +225,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  // User clicked any interactive element (e.g. expanded a menu) — clear the ring
-  // immediately (visual feedback that the AI noticed) then re-evaluate.
+  // User clicked any interactive element (e.g. expanded a menu) — re-evaluate
+  // without clearing the ring first: the old ring stays visible during the
+  // Claude call (~3-5 s) and moves when new guidance arrives.
   if (msg.type === 'USER_ACTED') {
-    if (tabId) {
-      chrome.tabs.sendMessage(tabId, { type: 'CLEAR' }).catch(() => {});
-      scheduleEvaluate(tabId, POST_ACTION_MS, { force: true });
-    }
+    if (tabId) scheduleEvaluate(tabId, POST_ACTION_MS, { force: true });
     sendResponse({ ok: true });
     return true;
   }

@@ -10,7 +10,7 @@
   // Diagnostic: confirms THIS (fresh) content script is live on the page. If you
   // reload the extension you MUST refresh the page — otherwise the old orphaned
   // script runs and highlights never appear.
-  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.3', { top: IS_TOP, url: location.href }); } catch (_) {}
+  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.4', { top: IS_TOP, url: location.href }); } catch (_) {}
 
   // Driver.js v1 IIFE exports window.driver.js.driver (factory fn, not class)
   const driverFactory = (typeof window !== 'undefined' && window.driver && window.driver.js)
@@ -208,56 +208,49 @@
   // by also matching when the element's own label is contained in the needle.
   // Finally climbs to a clickable ancestor, but only if it isn't dramatically
   // larger, so the ring stays tight on the item and never balloons to the group.
+  // Find the best visible interactive element matching a text label.
+  // Uses a narrow selector (only real interactive elements) so it's fast and never
+  // picks a wrapper container. Scores matches: exact label > label-within-needle >
+  // needle-within-label; tie-breaks by text length (shorter = more specific leaf).
+  // No ancestor climbing needed — every queried element is already interactive.
   function findByText(text) {
     const needle = (text || '').trim().toLowerCase();
     if (!needle) return null;
+    const SEL = [
+      'a[href]', 'button', 'input', 'select', 'textarea',
+      '[role="button"]', '[role="link"]', '[role="menuitem"]',
+      '[role="tab"]', '[role="option"]', '[role="treeitem"]',
+    ].join(',');
     let nodes;
-    try { nodes = (document.body || document.documentElement).querySelectorAll('*'); } catch (_) { return null; }
-    let exact = null, exactArea = Infinity;     // smallest element whose label IS the needle
-    let contains = null, containsArea = Infinity; // smallest element that contains it
-    for (let i = 0; i < nodes.length; i++) {
-      const el = nodes[i];
+    try { nodes = document.querySelectorAll(SEL); } catch (_) { return null; }
+    let best = null, bestScore = -Infinity;
+    for (const el of nodes) {
       try {
-        const tag = el.tagName;
-        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT' || tag === 'svg' || tag === 'path' || tag === 'SVG' || tag === 'PATH') continue;
         if (el.id === '__sg_highlight') continue;
-        const raw = el.textContent;
-        // Pre-filter: skip truly enormous containers (> 1000 chars) for speed.
-        // Use innerText for the actual match — it excludes visually-hidden aria
-        // spans (which Meta injects), so "System users" matches the leaf link
-        // even though that link's textContent may be much longer.
-        if (!raw || raw.length > 1000) continue;
-        const vt = ((el.innerText != null ? el.innerText : raw) || '').replace(/\s+/g, ' ').trim().toLowerCase();
-        if (!vt) continue;
-        const isExact = (vt === needle) || (needle.includes(vt) && vt.length >= 3);
-        const isContains = !isExact && vt.includes(needle);
-        if (!isExact && !isContains) continue;
-        if (el.closest && (el.closest('.driver-popover') || el.closest('#__sg_tip'))) continue;
+        try { if (el.closest('.driver-popover') || el.id === '__sg_tip') continue; } catch (_) {}
         const r = el.getBoundingClientRect();
-        if (r.width < 2 || r.height < 2) continue;
+        if (r.width < 1 || r.height < 1) continue;
         const st = window.getComputedStyle(el);
         if (!st || st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') continue;
-        const area = r.width * r.height;
-        if (isExact) { if (area < exactArea) { exactArea = area; exact = el; } }
-        else { if (area < containsArea) { containsArea = area; contains = el; } }
-      } catch (_) { /* skip this element, keep scanning */ }
+        // innerText respects CSS visibility; fall back to textContent then aria-label.
+        let vt = '';
+        try { vt = el.innerText || ''; } catch (_) {}
+        if (!vt) vt = el.textContent || '';
+        if (!vt) vt = el.getAttribute('aria-label') || '';
+        vt = vt.replace(/\s+/g, ' ').trim().toLowerCase();
+        if (!vt) continue;
+        // Score: exact match 100, label inside needle 80, needle inside label 40.
+        // Subtract text length so shorter (more specific) elements win ties.
+        let base = 0;
+        if (vt === needle) base = 100;
+        else if (needle.includes(vt) && vt.length >= 3) base = 80;
+        else if (vt.includes(needle)) base = 40;
+        else continue;
+        const score = base * 10000 - vt.length;
+        if (score > bestScore) { bestScore = score; best = el; }
+      } catch (_) {}
     }
-    let el = exact || contains;
-    if (!el) return null;
-    // Climb to the nearest clickable ancestor ONLY if the leaf element itself is
-    // not already a native interactive element. This prevents an <a>System users</a>
-    // from climbing to a parent wrapper and looking like the wrong element.
-    try {
-      const isNative = /^(A|BUTTON|INPUT|TEXTAREA|SELECT)$/i.test(el.tagName);
-      if (!isNative) {
-        const clk = el.closest && el.closest('a,button,[role="button"],[role="link"],[role="menuitem"],[role="tab"]');
-        if (clk && clk !== el) {
-          const er = el.getBoundingClientRect(), cr = clk.getBoundingClientRect();
-          if ((cr.width * cr.height) <= (er.width * er.height) * 2) el = clk;
-        }
-      }
-    } catch (_) {}
-    return el;
+    return best;
   }
 
   // ── Completion tracking ───────────────────────────────────────────────────
