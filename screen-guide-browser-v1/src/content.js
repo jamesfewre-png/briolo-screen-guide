@@ -201,35 +201,52 @@
     if (hlEl) hlEl.style.display = 'none';
   }
 
-  // Locate the SPECIFIC visible element matching a label. Prefers an exact label
-  // match, and among matches the SMALLEST one — i.e. the leaf link/button, not a
-  // parent container (e.g. "System users" itself, not the whole "Users" group
-  // whose text also contains "System users"). Skips our own guide UI.
+  // Locate the SPECIFIC element matching a label and return a tight target.
+  // Scans ALL elements (not a narrow selector) for the SMALLEST one whose text is
+  // the label — that's the leaf (e.g. the "System users" link), never the parent
+  // "Users" group. Handles verbose targetText ("System users in the left menu")
+  // by also matching when the element's own label is contained in the needle.
+  // Finally climbs to a clickable ancestor, but only if it isn't dramatically
+  // larger, so the ring stays tight on the item and never balloons to the group.
   function findByText(text) {
     const needle = (text || '').trim().toLowerCase();
     if (!needle) return null;
-    const SEL = 'button, a[href], [role="button"], [role="link"], [role="tab"], [role="menuitem"], input, textarea, select, [aria-label]';
     let nodes;
-    try { nodes = document.querySelectorAll(SEL); } catch (_) { return null; }
-    const exact = [], partial = [];
+    try { nodes = (document.body || document.documentElement).querySelectorAll('*'); } catch (_) { return null; }
+    const exact = [], contains = [];
     for (const el of nodes) {
+      const tag = el.tagName;
+      if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'SVG' || tag === 'PATH' || tag === 'NOSCRIPT') continue;
       if (el.id === '__sg_highlight') continue;
+      // Cheap pre-filter on text before any layout/style work.
+      const raw = el.textContent;
+      if (!raw) continue;
+      const vt = raw.replace(/\s+/g, ' ').trim().toLowerCase();
+      if (!vt) continue;
+      const exactish = (vt === needle) || (needle.includes(vt) && vt.length >= 3);
+      const has = !exactish && vt.includes(needle);
+      if (!exactish && !has) continue;
       try { if (el.closest && (el.closest('.driver-popover') || el.id === '__sg_tip')) continue; } catch (_) {}
       const r = el.getBoundingClientRect();
       if (r.width < 2 || r.height < 2) continue;
-      const style = window.getComputedStyle(el);
-      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
-      const vt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-      const al = (el.getAttribute('aria-label') || '').toLowerCase();
+      const st = window.getComputedStyle(el);
+      if (st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') continue;
       const area = r.width * r.height;
-      if (vt === needle || al === needle) exact.push({ el, area });
-      else if (vt.includes(needle) || al.includes(needle)) partial.push({ el, area, len: vt.length });
+      (exactish ? exact : contains).push({ el, area });
     }
-    // Smallest exact match = the precise leaf element.
-    if (exact.length) { exact.sort((a, b) => a.area - b.area); return exact[0].el; }
-    // No exact match: prefer the shortest-text container, then smallest area.
-    if (partial.length) { partial.sort((a, b) => (a.len - b.len) || (a.area - b.area)); return partial[0].el; }
-    return null;
+    const pick = arr => (arr.length ? arr.sort((a, b) => a.area - b.area)[0].el : null);
+    let el = pick(exact) || pick(contains);
+    if (!el) return null;
+    // Climb to the nearest clickable ancestor, but only if it's not >4x bigger
+    // (prevents grabbing the whole nav group when the leaf is a span/text node).
+    try {
+      const clk = el.closest && el.closest('a,button,[role="button"],[role="link"],[role="menuitem"],[role="tab"],[tabindex]');
+      if (clk && clk !== el) {
+        const er = el.getBoundingClientRect(), cr = clk.getBoundingClientRect();
+        if ((cr.width * cr.height) <= (er.width * er.height) * 4) el = clk;
+      }
+    } catch (_) {}
+    return el;
   }
 
   // ── Completion tracking ───────────────────────────────────────────────────
