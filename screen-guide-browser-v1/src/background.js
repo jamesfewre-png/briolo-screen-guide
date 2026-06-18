@@ -79,6 +79,7 @@ function captureScreenshot(windowId) {
 }
 
 function sendGuidance(tabId, g) {
+  try { console.log('[ScreenGuide] guidance -> tab ' + tabId, { sgId: g.sgId, status: g.status, message: g.message }); } catch (_) {}
   chrome.tabs.sendMessage(tabId, {
     type: 'HIGHLIGHT',
     sgId: g.sgId || null,

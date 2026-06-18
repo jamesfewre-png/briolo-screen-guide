@@ -7,6 +7,11 @@
     try { return window.top === window; } catch (_) { return false; }
   })();
 
+  // Diagnostic: confirms THIS (fresh) content script is live on the page. If you
+  // reload the extension you MUST refresh the page — otherwise the old orphaned
+  // script runs and highlights never appear.
+  try { console.log('[ScreenGuide] content script loaded', { top: IS_TOP, url: location.href }); } catch (_) {}
+
   // Driver.js v1 IIFE exports window.driver.js.driver (factory fn, not class)
   const driverFactory = (typeof window !== 'undefined' && window.driver && window.driver.js)
     ? window.driver.js.driver : null;
@@ -242,6 +247,7 @@
       clearTip();
       if (msg.sgId !== null && msg.sgId !== undefined && msg.sgId !== '') {
         const el = document.querySelector('[data-sg-id="' + msg.sgId + '"]');
+        try { console.log('[ScreenGuide] HIGHLIGHT sgId=' + msg.sgId, 'found=' + !!el); } catch (_) {}
         // Verify the element still exists in the live DOM before highlighting.
         if (el && document.contains(el)) {
           scrollIntoViewIfNeeded(el);
@@ -249,6 +255,8 @@
           attachClickCompletion(el);
           return;
         }
+      } else {
+        try { console.log('[ScreenGuide] HIGHLIGHT with no sgId (nav/type step)'); } catch (_) {}
       }
       // No element to point at (navigation/type step, or it was removed) — clear
       // the ring and show the instruction as a tip instead.
