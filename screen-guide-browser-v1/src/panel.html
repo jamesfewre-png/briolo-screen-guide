@@ -28,9 +28,17 @@ h1 { font-size: 18px; font-weight: 700; color: #ff8a00; margin-bottom: 4px; }
 .btn-secondary { background: transparent; color: #e8e8f0; border: 1px solid #3a3a5a; }
 .btn-danger { background: transparent; color: #f44336; border: 1px solid #f44336; }
 .btn-start { background: #ff8a00; color: #fff; font-size: 15px; padding: 14px; }
-.status { font-size: 12px; color: #888; text-align: center; margin-top: 4px; }
+.status { font-size: 12px; color: #888; text-align: center; margin-top: 4px; min-height: 15px; }
 #start-screen p { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 20px; }
 .divider { border: none; border-top: 1px solid #2a2a45; margin: 12px 0; }
+.ai-mode { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #888;
+  margin-bottom: 16px; }
+.ai-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; flex: 0 0 auto; }
+.ai-dot.on { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+.ai-dot.off { background: #666; }
+.ai-hint { font-size: 12px; color: #ff9800; background: #2a1f00; border: 1px solid #4a3a00;
+  border-radius: 8px; padding: 9px 11px; line-height: 1.45; margin-bottom: 12px; }
+.btn-danger.confirming { background: #f44336; color: #fff; }
 </style>
 </head>
 <body>
@@ -41,22 +49,33 @@ h1 { font-size: 18px; font-weight: 700; color: #ff8a00; margin-bottom: 4px; }
 <div class="card">
     <p>Guides you step-by-step through connecting Meta Business assets to Briolo. Click below to start.</p>
   </div>
+  <div class="ai-mode"><span class="ai-dot off" id="ai-dot"></span><span id="ai-mode-text">AI mode: off (text-match fallback)</span></div>
   <button class="btn btn-start" id="btn-start">Start Meta Connection &rarr;</button>
 </div>
 
 <div id="workflow-screen" style="display:none">
   <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
   <div class="card">
-    <div class="step-counter">Step <span id="step-num">1</span> of <span id="step-total">7</span></div>
+    <div class="step-counter">Step <span id="step-num">1</span> of <span id="step-total">&mdash;</span></div>
     <div class="step-name" id="step-name">&mdash;</div>
     <div class="instruction" id="instruction-text">&mdash;</div>
     <div id="confidence-badge"></div>
   </div>
+  <div class="ai-hint" id="ai-hint" style="display:none">AI assist is disabled &mdash; running on text matching only. If a highlight looks off, use &ldquo;I&apos;m Stuck&rdquo; to re-scan.</div>
   <button class="btn btn-primary" id="btn-next">&#10003; Mark Complete &amp; Next</button>
   <button class="btn btn-secondary" id="btn-stuck">? I&apos;m Stuck &mdash; Highlight Again</button>
   <hr class="divider">
   <button class="btn btn-danger" id="btn-stop">&#10007; Stop Guidance</button>
   <div class="status" id="status-msg"></div>
+</div>
+
+<div id="done-screen" style="display:none">
+  <div class="card" style="text-align:center">
+    <div style="font-size:34px; line-height:1; margin-bottom:10px; color:#4caf50">&#10003;</div>
+    <div class="step-name" style="margin-bottom:6px">Workflow complete</div>
+    <div class="instruction">Your Meta assets are connected. You can close this panel.</div>
+  </div>
+  <button class="btn btn-secondary" id="btn-restart">Start again</button>
 </div>
 
 <script src="panel.js"></script>

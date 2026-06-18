@@ -1,69 +1,137 @@
 {
   "id": "meta-connect-assets",
   "name": "Connect Meta Business Assets",
+  "description": "Guides a human through creating a System User and generating an access token in Meta Business Settings (2026 UI), then pasting it into Briolo. Human clicks everything; the guide never automates clicks and never reads or echoes the token value.",
   "steps": [
     {
       "id": "open-meta",
-      "name": "Open Meta Business Suite",
+      "name": "Open Business Settings",
       "instruction": "Go to business.facebook.com/latest/settings",
       "targetText": null,
       "targetTag": null,
-      "completionUrlPattern": "business\\.facebook\\.com",
-      "fallback": "Open business.facebook.com in this tab"
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Open business.facebook.com, then Settings"
     },
     {
-      "id": "business-settings",
-      "name": "Business Settings",
-      "instruction": "Click Business Settings in sidebar",
-      "targetText": "Business Settings",
+      "id": "open-users",
+      "name": "Open Users menu",
+      "instruction": "In the left nav, expand Users",
+      "targetText": "Users",
       "targetTag": "a",
-      "completionUrlPattern": "settings",
-      "fallback": "Look for Business Settings in the left nav"
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Find the Users section in the left nav"
     },
     {
       "id": "system-users",
-      "name": "System Users",
-      "instruction": "Click System users",
+      "name": "System users",
+      "instruction": "Click System users under Users",
       "targetText": "System users",
       "targetTag": "a",
-      "completionUrlPattern": "system_users",
-      "fallback": "Under Users section, find System users"
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings/system_users",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Under Users, choose System users"
     },
     {
       "id": "add-system-user",
-      "name": "Add System User",
-      "instruction": "Click Add or New to create a system user",
-      "targetText": "Add",
+      "name": "Add a system user",
+      "instruction": "Click Add new system user",
+      "targetText": "Add new system user",
       "targetTag": "button",
-      "completionUrlPattern": "system_users",
-      "fallback": "Find an Add or New button on this page"
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings/system_users",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Click the Add button to start a system user"
+    },
+    {
+      "id": "name-system-user",
+      "name": "Name the system user",
+      "instruction": "Type a name, e.g. Briolo Connector",
+      "targetText": "System user name",
+      "targetTag": "input",
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings/system_users",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Enter a name in the system user field"
+    },
+    {
+      "id": "set-admin-role",
+      "name": "Set Admin role",
+      "instruction": "Set the role to Admin",
+      "targetText": "Admin",
+      "targetTag": "button",
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings/system_users",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Choose Admin in the role dropdown"
+    },
+    {
+      "id": "create-system-user",
+      "name": "Create the system user",
+      "instruction": "Click Create system user",
+      "targetText": "Create system user",
+      "targetTag": "button",
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings/system_users",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Confirm by clicking Create system user"
+    },
+    {
+      "id": "assign-assets",
+      "name": "Assign assets",
+      "instruction": "Select the user, click Assign assets",
+      "targetText": "Assign assets",
+      "targetTag": "button",
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings/system_users",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Open the user, then click Assign assets"
+    },
+    {
+      "id": "confirm-assets",
+      "name": "Confirm assets",
+      "instruction": "Pick assets, grant full control, save",
+      "targetText": "Save Changes",
+      "targetTag": "button",
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings/system_users",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Select assets and Save Changes"
     },
     {
       "id": "generate-token",
-      "name": "Generate Token",
-      "instruction": "Click Generate New Token",
-      "targetText": "Generate New Token",
+      "name": "Generate new token",
+      "instruction": "Click Generate new token",
+      "targetText": "Generate new token",
       "targetTag": "button",
-      "completionUrlPattern": "system_users",
-      "fallback": "Find the Generate New Token button"
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings/system_users",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Click Generate new token for this user"
+    },
+    {
+      "id": "select-token-scopes",
+      "name": "Select app and scopes",
+      "instruction": "Pick the app, choose permissions",
+      "targetText": "Generate token",
+      "targetTag": "button",
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings/system_users",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Select app, scopes, then Generate token"
     },
     {
       "id": "copy-token",
-      "name": "Copy Token",
-      "instruction": "Copy the access token shown",
+      "name": "Copy your token",
+      "instruction": "Click Copy to copy your token",
       "targetText": "Copy",
       "targetTag": "button",
-      "completionUrlPattern": "system_users",
-      "fallback": "Copy the access token to your clipboard"
+      "completionUrlPattern": "business\\.facebook\\.com/latest/settings/system_users",
+      "expectedDomains": ["business.facebook.com"],
+      "fallback": "Copy the token shown (you will paste it next)"
     },
     {
       "id": "verify",
-      "name": "Verify in Briolo",
-      "instruction": "Paste token in your Briolo dashboard",
+      "name": "Paste in Briolo",
+      "instruction": "Paste the token in your Briolo dashboard",
       "targetText": null,
       "targetTag": null,
       "completionUrlPattern": "briolo\\.io|localhost",
-      "fallback": "Go to your Briolo dashboard and paste the token"
+      "expectedDomains": ["briolo.io", "localhost", "127.0.0.1"],
+      "fallback": "Open Briolo and paste the token"
     }
   ]
 }

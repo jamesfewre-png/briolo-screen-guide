@@ -1,12 +1,19 @@
 try { importScripts('claudeReasoner.js'); } catch (e) { console.warn('Screen Guide: claudeReasoner not loaded', e); }
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let state = { workflowId: null, stepIndex: 0, enabled: false, confidence: 0 };
+let state = { workflowId: null, stepIndex: 0, enabled: false, confidence: 0, completed: false };
 let workflow = null;
 let apiKey = null;
 const lastElements = {}; // tabId → elements[]
 const lastUrl = {};      // tabId → string
 const pendingAi = {};    // tabId → boolean — throttle concurrent Claude calls
+let lastCompletedIndex = -1; // guard against double-advance (click STEP_COMPLETE + URL match)
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const CLAUDE_TIMEOUT_MS = 12000;
+
+// Number of steps in the active workflow (0 until loaded)
+function totalSteps() { return workflow?.steps?.length ?? 0; }
 
 // ── Load workflow and API key ─────────────────────────────────────────────────
 async function loadWorkflow() {
@@ -50,9 +57,18 @@ function matchStep(elements, step) {
   let best = null, bestScore = 0;
   for (const el of elements) {
     let score = 0;
-    if ((el.visibleText || '').toLowerCase().includes(needle)) score += 3;
-    if ((el.ariaLabel || '').toLowerCase().includes(needle)) score += 2;
+    const vt = (el.visibleText || '').toLowerCase();
+    const al = (el.ariaLabel || '').toLowerCase();
+    if (vt.includes(needle)) score += 3;
+    if (al.includes(needle)) score += 2;
+    // Inputs/textareas usually have empty visibleText — fall back to the
+    // placeholder/name attributes so input-targeted steps can still match.
+    if ((el.placeholder || '').toLowerCase().includes(needle)) score += 2;
+    if ((el.name || '').toLowerCase().includes(needle)) score += 1;
     if (step.targetTag && el.tag === step.targetTag) score += 1;
+    // Exact-label bonus: prefer the element whose label IS the target over one
+    // that merely contains it — e.g. "Users" should beat "System users".
+    if (vt === needle || al === needle) score += 3;
     if (score > bestScore) { bestScore = score; best = el; }
   }
   return best && bestScore > 0 ? { ...best, score: bestScore } : null;
@@ -62,26 +78,55 @@ function matchStep(elements, step) {
 // forceAi = true skips the text-match threshold check (used by STUCK button)
 async function pushToTab(tabId, forceAi = false) {
   if (!state.enabled || !tabId) return;
+  // Workflow finished — clear any highlight; the panel shows the done view.
+  if (state.completed) {
+    chrome.tabs.sendMessage(tabId, { type: 'CLEAR' }).catch(() => {});
+    return;
+  }
   const step = currentStep();
   if (!step) return;
   const elements = lastElements[tabId] || [];
-  const total = workflow?.steps?.length ?? 7;
+  const total = totalSteps();
   const match = matchStep(elements, step);
   const textScore = match ? match.score : 0;
-  const textConfidence = Math.round((textScore / 6) * 100);
+  const textConfidence = Math.min(100, Math.round((textScore / 6) * 100));
 
   // Call Claude only when text match is weak (score < 3) or user is stuck,
   // and only if an API key is configured and no call is already in flight.
   const canUseAi = apiKey && typeof self.analyzeWithClaude === 'function';
   const needsAi = canUseAi && (forceAi || textScore < 3) && !pendingAi[tabId];
 
+  // No API key and no text match at all — give the user a clear fallback
+  // instruction instead of staying silent.
+  if (!canUseAi && textScore === 0) {
+    state.confidence = 0;
+    chrome.tabs.sendMessage(tabId, {
+      type: 'HIGHLIGHT',
+      sgId: null,
+      instruction: step.instruction,
+      stepName: step.name,
+      stepIndex: state.stepIndex,
+      totalSteps: total,
+      confidence: 0,
+      fallback: step.fallback || `Scroll to find: ${step.name}`,
+    }).catch(() => {});
+    return;
+  }
+
   if (needsAi) {
     pendingAi[tabId] = true;
     try {
-      const result = await self.analyzeWithClaude({
-        step, elements, apiKey,
-        currentUrl: lastUrl[tabId] || ''
-      });
+      // Race the Claude call against a hard timeout so a slow/hung request
+      // falls through to the text-match fallback in the catch block.
+      const result = await Promise.race([
+        self.analyzeWithClaude({
+          step, elements, apiKey,
+          currentUrl: lastUrl[tabId] || ''
+        }),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Claude request timed out')), CLAUDE_TIMEOUT_MS)
+        ),
+      ]);
       pendingAi[tabId] = false;
       const aiConf = Math.round((result.confidence || 0) * 100);
       state.confidence = aiConf;
@@ -125,6 +170,31 @@ async function pushToTab(tabId, forceAi = false) {
   }
 }
 
+// ── URL-based auto-advance ──────────────────────────────────────────────────
+// Mutates state if the current step's completionUrlPattern matches `url`.
+// Works for both full page loads (tabs.onUpdated) and SPA soft navigation
+// (PAGE_STATE, since content.js re-sends state on history/URL changes).
+// Returns true if it advanced or marked the workflow complete.
+function maybeAdvanceOnUrl(url) {
+  if (!state.enabled || !url) return false;
+  const step = currentStep();
+  if (!step || !step.completionUrlPattern) return false;
+  // Double-advance guard: a click STEP_COMPLETE may have already advanced.
+  if (lastCompletedIndex === state.stepIndex) return false;
+  let matched = false;
+  try { matched = new RegExp(step.completionUrlPattern).test(url); } catch (_) { return false; }
+  if (!matched) return false;
+  const total = totalSteps();
+  lastCompletedIndex = state.stepIndex;
+  if (total > 0 && state.stepIndex < total - 1) {
+    state.stepIndex++;
+  } else {
+    // Terminal step's URL matched — the workflow is done.
+    state.completed = true;
+  }
+  return true;
+}
+
 // ── Message handler ───────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   const tabId = sender.tab?.id;
@@ -137,12 +207,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'START_WORKFLOW') {
-    state = { workflowId: msg.workflowId || 'meta-connect-assets', stepIndex: 0, enabled: true, confidence: 0 };
+    state = { workflowId: msg.workflowId || 'meta-connect-assets', stepIndex: 0, enabled: true, confidence: 0, completed: false };
+    lastCompletedIndex = -1;
     // sender.tab is undefined when message comes from the side panel — query active tab instead
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
+    chrome.tabs.query({ active: true, lastFocusedWindow: true }, async tabs => {
       const activeTabId = tabs[0]?.id;
       if (activeTabId) {
         chrome.sidePanel.open({ tabId: activeTabId }).catch(() => {});
+        // If the workflow failed to load earlier (or hasn't loaded yet),
+        // retry before pushing so the first step isn't silently dropped.
+        if (!workflow || !workflow.steps || workflow.steps.length === 0) {
+          await loadWorkflow();
+        }
         pushToTab(activeTabId);
       }
     });
@@ -151,8 +227,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'NEXT_STEP') {
-    const total = workflow?.steps?.length ?? 7;
-    if (state.stepIndex < total - 1) state.stepIndex++;
+    const total = totalSteps();
+    if (total > 0 && state.stepIndex < total - 1) state.stepIndex++;
     chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
       tabs.forEach(t => t.id && pushToTab(t.id));
     });
@@ -161,8 +237,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'STEP_COMPLETE') {
-    const total = workflow?.steps?.length ?? 7;
-    if (state.enabled && state.stepIndex < total - 1) {
+    const total = totalSteps();
+    // Guard against double-advance: only advance if this step index hasn't
+    // already been completed (e.g. by a URL-pattern match on navigation).
+    if (state.enabled && total > 0 && state.stepIndex < total - 1
+        && lastCompletedIndex !== state.stepIndex) {
+      lastCompletedIndex = state.stepIndex;
       state.stepIndex++;
       chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
         tabs.forEach(t => t.id && pushToTab(t.id));
@@ -196,11 +276,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       enabled: state.enabled,
       workflowId: state.workflowId,
       stepIndex: state.stepIndex,
-      totalSteps: workflow?.steps?.length ?? 7,
+      totalSteps: totalSteps(),
       step: step ?? null,
       workflowName: workflow?.name ?? '',
       confidence: state.confidence ?? 0,
       hasApiKey: !!apiKey,
+      completed: !!state.completed,
     });
     return true;
   }
@@ -208,7 +289,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'PAGE_STATE') {
     if (tabId) {
       lastElements[tabId] = msg.elements || [];
-      if (msg.url) lastUrl[tabId] = msg.url;
+      if (msg.url) {
+        lastUrl[tabId] = msg.url;
+        // SPA soft navigation lands here (content.js re-sends on URL change),
+        // so this is where URL auto-advance fires for single-page apps.
+        maybeAdvanceOnUrl(msg.url);
+      }
       pushToTab(tabId); // fire-and-forget
     }
     sendResponse({ ok: true });
@@ -219,16 +305,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // ── Re-push on navigation ─────────────────────────────────────────────────────
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && state.enabled) {
-    if (tab.url) lastUrl[tabId] = tab.url;
-    // Auto-advance navigation-only steps (no targetText) when URL matches completionUrlPattern
-    const step = currentStep();
-    if (step && !step.targetText && step.completionUrlPattern) {
-      try {
-        if (new RegExp(step.completionUrlPattern).test(tab.url)) {
-          const total = workflow?.steps?.length ?? 7;
-          if (state.stepIndex < total - 1) state.stepIndex++;
-        }
-      } catch (_) {}
+    if (tab.url) {
+      lastUrl[tabId] = tab.url;
+      maybeAdvanceOnUrl(tab.url); // full page-load auto-advance
     }
     pushToTab(tabId);
   }
