@@ -1,198 +1,159 @@
 try { importScripts('claudeReasoner.js'); } catch (e) { console.warn('Screen Guide: claudeReasoner not loaded', e); }
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let state = { workflowId: null, stepIndex: 0, enabled: false, confidence: 0, completed: false };
-let workflow = null;
+// Goal-driven, not step-driven. Claude decides the next action each cycle from
+// the live screen + goal; we just track the goal, recent guidance, and history.
+let state = {
+  goalId: null,
+  enabled: false,
+  completed: false,
+  thinking: false,
+  confidence: 0,
+  lastGuidance: null,   // { message, reasoning, sgId, status, confidence }
+  history: [],          // recent message strings, so Claude doesn't repeat itself
+};
+let goal = null;        // loaded goal definition
 let apiKey = null;
+
 const lastElements = {}; // tabId → elements[]
 const lastUrl = {};      // tabId → string
-const pendingAi = {};    // tabId → boolean — throttle concurrent Claude calls
-let lastCompletedIndex = -1; // guard against double-advance (click STEP_COMPLETE + URL match)
+const lastSig = {};      // tabId → page signature (skip redundant evaluations)
+const pendingAi = {};    // tabId → boolean (one Claude call in flight per tab)
+const evalTimers = {};   // tabId → debounce timer
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const CLAUDE_TIMEOUT_MS = 12000;
+const CLAUDE_TIMEOUT_MS = 22000;
+const EVAL_DEBOUNCE_MS = 700;   // let the page settle before re-evaluating
+const POST_ACTION_MS = 1000;    // after the user acts, wait for the page to react
 
-// Number of steps in the active workflow (0 until loaded)
-function totalSteps() { return workflow?.steps?.length ?? 0; }
-
-// ── Load workflow and API key ─────────────────────────────────────────────────
-async function loadWorkflow() {
+// ── Load goal + API key ─────────────────────────────────────────────────────────
+async function loadGoal() {
   try {
     const url = chrome.runtime.getURL('workflows/meta-connect-assets.json');
     const res = await fetch(url);
-    workflow = await res.json();
-  } catch (e) { console.error('Screen Guide: failed to load workflow', e); }
+    goal = await res.json();
+  } catch (e) { console.error('Screen Guide: failed to load goal', e); }
 }
 
 async function loadApiKey() {
   try {
     const stored = await chrome.storage.local.get('claudeApiKey');
     if (stored.claudeApiKey) { apiKey = stored.claudeApiKey; return; }
-    // Fall back to build-injected config.json (generated from .env at build time)
     const res = await fetch(chrome.runtime.getURL('config.json'));
     if (res.ok) {
       const cfg = await res.json();
-      if (cfg.claudeApiKey) {
-        apiKey = cfg.claudeApiKey;
-        await chrome.storage.local.set({ claudeApiKey: apiKey });
-      }
+      if (cfg.claudeApiKey) { apiKey = cfg.claudeApiKey; await chrome.storage.local.set({ claudeApiKey: apiKey }); }
     }
   } catch (e) {}
 }
 
-chrome.runtime.onInstalled.addListener(() => { loadWorkflow(); loadApiKey(); });
-chrome.runtime.onStartup.addListener(() => { loadWorkflow(); loadApiKey(); });
-loadWorkflow();
+chrome.runtime.onInstalled.addListener(() => { loadGoal(); loadApiKey(); });
+chrome.runtime.onStartup.addListener(() => { loadGoal(); loadApiKey(); });
+loadGoal();
 loadApiKey();
 
-// ── Step helpers ──────────────────────────────────────────────────────────────
-function currentStep() {
-  if (!workflow || !state.workflowId) return null;
-  return workflow.steps[state.stepIndex] ?? null;
+// ── Helpers ─────────────────────────────────────────────────────────────────────
+function pageSignature(url, elements) {
+  const texts = (elements || []).slice(0, 40).map(e => e.visibleText || '').join('|');
+  return (url || '') + '::' + ((elements && elements.length) || 0) + '::' + texts.slice(0, 600);
 }
 
-function matchStep(elements, step) {
-  if (!step || !step.targetText) return null;
-  const needle = step.targetText.toLowerCase();
-  let best = null, bestScore = 0;
-  for (const el of elements) {
-    let score = 0;
-    const vt = (el.visibleText || '').toLowerCase();
-    const al = (el.ariaLabel || '').toLowerCase();
-    if (vt.includes(needle)) score += 3;
-    if (al.includes(needle)) score += 2;
-    // Inputs/textareas usually have empty visibleText — fall back to the
-    // placeholder/name attributes so input-targeted steps can still match.
-    if ((el.placeholder || '').toLowerCase().includes(needle)) score += 2;
-    if ((el.name || '').toLowerCase().includes(needle)) score += 1;
-    if (step.targetTag && el.tag === step.targetTag) score += 1;
-    // Exact-label bonus: prefer the element whose label IS the target over one
-    // that merely contains it — e.g. "Users" should beat "System users".
-    if (vt === needle || al === needle) score += 3;
-    if (score > bestScore) { bestScore = score; best = el; }
-  }
-  return best && bestScore > 0 ? { ...best, score: bestScore } : null;
-}
-
-// ── Push guidance to a tab ────────────────────────────────────────────────────
-// forceAi = true skips the text-match threshold check (used by STUCK button)
-async function pushToTab(tabId, forceAi = false) {
-  if (!state.enabled || !tabId) return;
-  // Workflow finished — clear any highlight; the panel shows the done view.
-  if (state.completed) {
-    chrome.tabs.sendMessage(tabId, { type: 'CLEAR' }).catch(() => {});
-    return;
-  }
-  const step = currentStep();
-  if (!step) return;
-  const elements = lastElements[tabId] || [];
-  const total = totalSteps();
-  const match = matchStep(elements, step);
-  const textScore = match ? match.score : 0;
-  const textConfidence = Math.min(100, Math.round((textScore / 6) * 100));
-
-  // Call Claude only when text match is weak (score < 3) or user is stuck,
-  // and only if an API key is configured and no call is already in flight.
-  const canUseAi = apiKey && typeof self.analyzeWithClaude === 'function';
-  const needsAi = canUseAi && (forceAi || textScore < 3) && !pendingAi[tabId];
-
-  // No API key and no text match at all — give the user a clear fallback
-  // instruction instead of staying silent.
-  if (!canUseAi && textScore === 0) {
-    state.confidence = 0;
-    chrome.tabs.sendMessage(tabId, {
-      type: 'HIGHLIGHT',
-      sgId: null,
-      instruction: step.instruction,
-      stepName: step.name,
-      stepIndex: state.stepIndex,
-      totalSteps: total,
-      confidence: 0,
-      fallback: step.fallback || `Scroll to find: ${step.name}`,
-    }).catch(() => {});
-    return;
-  }
-
-  if (needsAi) {
-    pendingAi[tabId] = true;
+function captureScreenshot(windowId) {
+  return new Promise(resolve => {
     try {
-      // Race the Claude call against a hard timeout so a slow/hung request
-      // falls through to the text-match fallback in the catch block.
-      const result = await Promise.race([
-        self.analyzeWithClaude({
-          step, elements, apiKey,
-          currentUrl: lastUrl[tabId] || ''
-        }),
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Claude request timed out')), CLAUDE_TIMEOUT_MS)
-        ),
-      ]);
-      pendingAi[tabId] = false;
-      const aiConf = Math.round((result.confidence || 0) * 100);
-      state.confidence = aiConf;
-      chrome.tabs.sendMessage(tabId, {
-        type: 'HIGHLIGHT',
-        sgId: result.sgId || null,
-        instruction: step.instruction,
-        stepName: step.name,
-        stepIndex: state.stepIndex,
-        totalSteps: total,
-        confidence: aiConf,
-        fallback: result.message || step.fallback,
-      }).catch(() => {});
-    } catch (err) {
-      pendingAi[tabId] = false;
-      console.warn('Screen Guide: Claude failed, falling back to text match:', err.message);
-      state.confidence = textConfidence;
-      chrome.tabs.sendMessage(tabId, {
-        type: 'HIGHLIGHT',
-        sgId: match ? String(match.sgId) : null,
-        instruction: step.instruction,
-        stepName: step.name,
-        stepIndex: state.stepIndex,
-        totalSteps: total,
-        confidence: textConfidence,
-        fallback: step.fallback,
-      }).catch(() => {});
+      chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 45 }, dataUrl => {
+        if (chrome.runtime.lastError) { resolve(null); return; }
+        resolve(dataUrl || null);
+      });
+    } catch (_) { resolve(null); }
+  });
+}
+
+function sendGuidance(tabId, g) {
+  chrome.tabs.sendMessage(tabId, {
+    type: 'HIGHLIGHT',
+    sgId: g.sgId || null,
+    instruction: g.message || '',
+    stepName: (goal && goal.name) || 'Guidance',
+    reasoning: g.reasoning || '',
+    status: g.status || 'guiding',
+    confidence: state.confidence,
+    fallback: g.message || 'Look at the highlighted area to continue.',
+  }).catch(() => {});
+}
+
+// ── Core: ask Claude what to do next, given the live screen + goal ───────────────
+async function evaluate(tabId, opts) {
+  const force = !!(opts && opts.force);
+  if (!state.enabled || state.completed || !tabId) return;
+  if (!goal) { await loadGoal(); if (!goal) return; }
+  if (pendingAi[tabId]) return;
+
+  const elements = lastElements[tabId] || [];
+  const url = lastUrl[tabId] || '';
+  const sig = pageSignature(url, elements);
+  if (!force && sig === lastSig[tabId]) return; // nothing meaningful changed
+
+  if (!apiKey || typeof self.analyzeWithClaude !== 'function') {
+    state.lastGuidance = { message: 'AI key not set — add ANTHROPIC_API_KEY and rebuild.', reasoning: '', sgId: '', status: 'blocked', confidence: 0 };
+    state.confidence = 0;
+    sendGuidance(tabId, state.lastGuidance);
+    return;
+  }
+
+  // Only capture/evaluate the active tab (captureVisibleTab grabs the active tab).
+  let windowId, active = true;
+  try { const tab = await chrome.tabs.get(tabId); windowId = tab.windowId; active = tab.active; } catch (_) {}
+  if (!active) return;
+
+  pendingAi[tabId] = true;
+  state.thinking = true;
+  lastSig[tabId] = sig;
+
+  const screenshotDataUrl = await captureScreenshot(windowId);
+
+  try {
+    const result = await Promise.race([
+      self.analyzeWithClaude({
+        goal, recentActions: state.history, elements,
+        screenshotDataUrl, currentUrl: url, apiKey,
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('reasoner timed out')), CLAUDE_TIMEOUT_MS)),
+    ]);
+    pendingAi[tabId] = false;
+    state.thinking = false;
+    state.confidence = Math.round((result.confidence || 0) * 100);
+    state.lastGuidance = result;
+    if (result.message) {
+      state.history.push(result.message);
+      if (state.history.length > 12) state.history = state.history.slice(-12);
     }
-  } else {
-    state.confidence = textConfidence;
-    chrome.tabs.sendMessage(tabId, {
-      type: 'HIGHLIGHT',
-      sgId: match ? String(match.sgId) : null,
-      instruction: step.instruction,
-      stepName: step.name,
-      stepIndex: state.stepIndex,
-      totalSteps: total,
-      confidence: textConfidence,
-      fallback: step.fallback,
-    }).catch(() => {});
+    if (result.status === 'complete') {
+      state.completed = true;
+      chrome.tabs.sendMessage(tabId, { type: 'CLEAR' }).catch(() => {});
+      return;
+    }
+    sendGuidance(tabId, result);
+  } catch (err) {
+    pendingAi[tabId] = false;
+    state.thinking = false;
+    console.warn('Screen Guide: reasoner failed:', err.message);
+    // Allow a retry on the next change by clearing the signature.
+    lastSig[tabId] = '';
+    if (state.lastGuidance) sendGuidance(tabId, state.lastGuidance);
   }
 }
 
-// ── URL-based auto-advance ──────────────────────────────────────────────────
-// Mutates state if the current step's completionUrlPattern matches `url`.
-// Works for both full page loads (tabs.onUpdated) and SPA soft navigation
-// (PAGE_STATE, since content.js re-sends state on history/URL changes).
-// Returns true if it advanced or marked the workflow complete.
-function maybeAdvanceOnUrl(url) {
-  if (!state.enabled || !url) return false;
-  const step = currentStep();
-  if (!step || !step.completionUrlPattern) return false;
-  // Double-advance guard: a click STEP_COMPLETE may have already advanced.
-  if (lastCompletedIndex === state.stepIndex) return false;
-  let matched = false;
-  try { matched = new RegExp(step.completionUrlPattern).test(url); } catch (_) { return false; }
-  if (!matched) return false;
-  const total = totalSteps();
-  lastCompletedIndex = state.stepIndex;
-  if (total > 0 && state.stepIndex < total - 1) {
-    state.stepIndex++;
-  } else {
-    // Terminal step's URL matched — the workflow is done.
-    state.completed = true;
-  }
-  return true;
+function scheduleEvaluate(tabId, ms, opts) {
+  clearTimeout(evalTimers[tabId]);
+  evalTimers[tabId] = setTimeout(() => evaluate(tabId, opts), ms ?? EVAL_DEBOUNCE_MS);
+}
+
+function activeTabThen(fn) {
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
+    const id = tabs[0]?.id;
+    if (id) fn(id);
+  });
 }
 
 // ── Message handler ───────────────────────────────────────────────────────────
@@ -207,81 +168,61 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (msg.type === 'START_WORKFLOW') {
-    state = { workflowId: msg.workflowId || 'meta-connect-assets', stepIndex: 0, enabled: true, confidence: 0, completed: false };
-    lastCompletedIndex = -1;
-    // sender.tab is undefined when message comes from the side panel — query active tab instead
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }, async tabs => {
-      const activeTabId = tabs[0]?.id;
-      if (activeTabId) {
-        chrome.sidePanel.open({ tabId: activeTabId }).catch(() => {});
-        // If the workflow failed to load earlier (or hasn't loaded yet),
-        // retry before pushing so the first step isn't silently dropped.
-        if (!workflow || !workflow.steps || workflow.steps.length === 0) {
-          await loadWorkflow();
-        }
-        pushToTab(activeTabId);
-      }
+    state = {
+      goalId: msg.workflowId || 'meta-connect-assets',
+      enabled: true, completed: false, thinking: false,
+      confidence: 0, lastGuidance: null, history: [],
+    };
+    activeTabThen(async id => {
+      chrome.sidePanel.open({ tabId: id }).catch(() => {});
+      if (!goal) await loadGoal();
+      lastSig[id] = ''; // force a fresh evaluation
+      evaluate(id, { force: true });
     });
     sendResponse({ ok: true });
     return true;
   }
 
+  // User says "I've done this" / "what's next" — force a fresh look.
   if (msg.type === 'NEXT_STEP') {
-    const total = totalSteps();
-    if (total > 0 && state.stepIndex < total - 1) state.stepIndex++;
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
-      tabs.forEach(t => t.id && pushToTab(t.id));
-    });
-    sendResponse({ ok: true, stepIndex: state.stepIndex });
-    return true;
-  }
-
-  if (msg.type === 'STEP_COMPLETE') {
-    const total = totalSteps();
-    // Guard against double-advance: only advance if this step index hasn't
-    // already been completed (e.g. by a URL-pattern match on navigation).
-    if (state.enabled && total > 0 && state.stepIndex < total - 1
-        && lastCompletedIndex !== state.stepIndex) {
-      lastCompletedIndex = state.stepIndex;
-      state.stepIndex++;
-      chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
-        tabs.forEach(t => t.id && pushToTab(t.id));
-      });
-    }
+    activeTabThen(id => { lastSig[id] = ''; evaluate(id, { force: true }); });
     sendResponse({ ok: true });
     return true;
   }
 
+  // User clicked the highlighted element — re-evaluate once the page reacts.
+  if (msg.type === 'STEP_COMPLETE') {
+    if (tabId) scheduleEvaluate(tabId, POST_ACTION_MS, { force: true });
+    sendResponse({ ok: true });
+    return true;
+  }
+
+  // "I'm stuck" — force a fresh evaluation of the current screen.
   if (msg.type === 'STUCK') {
-    // Force AI on stuck — even if text match was confident, user says it's wrong
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
-      tabs.forEach(t => t.id && pushToTab(t.id, true));
-    });
+    activeTabThen(id => { lastSig[id] = ''; evaluate(id, { force: true }); });
     sendResponse({ ok: true });
     return true;
   }
 
   if (msg.type === 'STOP') {
     state.enabled = false;
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }, tabs => {
-      tabs.forEach(t => t.id && chrome.tabs.sendMessage(t.id, { type: 'CLEAR' }).catch(() => {}));
-    });
+    activeTabThen(id => chrome.tabs.sendMessage(id, { type: 'CLEAR' }).catch(() => {}));
     sendResponse({ ok: true });
     return true;
   }
 
   if (msg.type === 'GET_STATE') {
-    const step = currentStep();
+    const g = state.lastGuidance || {};
     sendResponse({
       enabled: state.enabled,
-      workflowId: state.workflowId,
-      stepIndex: state.stepIndex,
-      totalSteps: totalSteps(),
-      step: step ?? null,
-      workflowName: workflow?.name ?? '',
+      completed: !!state.completed,
+      thinking: !!state.thinking,
+      goalName: (goal && goal.name) || '',
+      message: g.message || '',
+      reasoning: g.reasoning || '',
+      status: g.status || (state.enabled ? 'guiding' : ''),
       confidence: state.confidence ?? 0,
       hasApiKey: !!apiKey,
-      completed: !!state.completed,
     });
     return true;
   }
@@ -289,29 +230,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'PAGE_STATE') {
     if (tabId) {
       lastElements[tabId] = msg.elements || [];
-      if (msg.url) {
-        lastUrl[tabId] = msg.url;
-        // SPA soft navigation lands here (content.js re-sends on URL change),
-        // so this is where URL auto-advance fires for single-page apps.
-        maybeAdvanceOnUrl(msg.url);
-      }
-      pushToTab(tabId); // fire-and-forget
+      if (msg.url) lastUrl[tabId] = msg.url;
+      // Re-evaluate when the page settles (debounced + signature-guarded so our
+      // own highlight or idle mutations don't trigger needless Claude calls).
+      if (state.enabled && !state.completed) scheduleEvaluate(tabId);
     }
     sendResponse({ ok: true });
     return true;
   }
 });
 
-// ── Re-push on navigation ─────────────────────────────────────────────────────
+// ── Navigation: full page loads trigger a fresh evaluation ──────────────────────
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && state.enabled) {
-    if (tab.url) {
-      lastUrl[tabId] = tab.url;
-      maybeAdvanceOnUrl(tab.url); // full page-load auto-advance
-    }
-    pushToTab(tabId);
+  if (changeInfo.status === 'complete' && state.enabled && !state.completed) {
+    if (tab.url) lastUrl[tabId] = tab.url;
+    lastSig[tabId] = ''; // URL changed — definitely re-evaluate
+    scheduleEvaluate(tabId);
   }
 });
 chrome.tabs.onActivated.addListener(({ tabId }) => {
-  if (state.enabled) pushToTab(tabId);
+  if (state.enabled && !state.completed) scheduleEvaluate(tabId);
 });

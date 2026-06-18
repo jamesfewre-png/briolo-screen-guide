@@ -11,59 +11,74 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 h1 { font-size: 18px; font-weight: 700; color: #ff8a00; margin-bottom: 4px; }
 .subtitle { font-size: 12px; color: #888; margin-bottom: 20px; }
 .card { background: #1a1a2e; border-radius: 10px; padding: 16px; margin-bottom: 12px; border: 1px solid #2a2a45; }
-.step-counter { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-.step-name { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px; }
-.instruction { font-size: 13px; color: #c0c0d0; line-height: 1.5; }
-.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px;
-  font-weight: 600; margin-top: 10px; }
-.badge-green { background: #1a3a1a; color: #4caf50; border: 1px solid #4caf50; }
-.badge-amber { background: #3a2a00; color: #ff9800; border: 1px solid #ff9800; }
-.badge-red { background: #3a1a1a; color: #f44336; border: 1px solid #f44336; }
-.progress-bar { height: 3px; background: #2a2a45; border-radius: 3px; margin-bottom: 16px; overflow: hidden; }
-.progress-fill { height: 100%; background: #ff8a00; border-radius: 3px; transition: width 0.4s; }
 .btn { width: 100%; padding: 11px; border-radius: 8px; font-size: 13px; font-weight: 600;
   cursor: pointer; border: none; margin-bottom: 8px; transition: opacity 0.2s; }
 .btn:hover { opacity: 0.85; }
 .btn-primary { background: #ff8a00; color: #fff; }
 .btn-secondary { background: transparent; color: #e8e8f0; border: 1px solid #3a3a5a; }
 .btn-danger { background: transparent; color: #f44336; border: 1px solid #f44336; }
+.btn-danger.confirming { background: #f44336; color: #fff; }
 .btn-start { background: #ff8a00; color: #fff; font-size: 15px; padding: 14px; }
 .status { font-size: 12px; color: #888; text-align: center; margin-top: 4px; min-height: 15px; }
 #start-screen p { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 20px; }
 .divider { border: none; border-top: 1px solid #2a2a45; margin: 12px 0; }
-.ai-mode { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #888;
-  margin-bottom: 16px; }
+.instruction { font-size: 13px; color: #c0c0d0; line-height: 1.5; }
+.step-name { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+
+/* AI-mode indicator */
+.ai-mode { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #888; margin-bottom: 16px; }
 .ai-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; flex: 0 0 auto; }
 .ai-dot.on { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
 .ai-dot.off { background: #666; }
+
+/* Goal header + thinking */
+.goal-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.goal-name { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+.think { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #ff8a00; }
+.think-dot { width: 7px; height: 7px; border-radius: 50%; background: #ff8a00; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
+
+/* The live guidance */
+.ai-msg { font-size: 15px; font-weight: 600; color: #fff; line-height: 1.45; }
+.ai-why { font-size: 12px; color: #9a9ab0; line-height: 1.5; margin-top: 10px;
+  border-top: 1px solid #2a2a45; padding-top: 10px; }
+.ai-why b { color: #b8b8cc; font-weight: 600; }
+
+/* Status pill */
+.status-pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px;
+  font-weight: 600; margin-bottom: 10px; }
+.pill-amber { background: #3a2a00; color: #ff9800; border: 1px solid #ff9800; }
+.pill-red { background: #3a1a1a; color: #f44336; border: 1px solid #f44336; }
+
 .ai-hint { font-size: 12px; color: #ff9800; background: #2a1f00; border: 1px solid #4a3a00;
   border-radius: 8px; padding: 9px 11px; line-height: 1.45; margin-bottom: 12px; }
-.btn-danger.confirming { background: #f44336; color: #fff; }
 </style>
 </head>
 <body>
 <h1>AI Screen Guide</h1>
-<p class="subtitle">Browser-based workflow guidance</p>
+<p class="subtitle">Live, AI-guided onboarding</p>
 
 <div id="start-screen">
-<div class="card">
-    <p>Guides you step-by-step through connecting Meta Business assets to Briolo. Click below to start.</p>
+  <div class="card">
+    <p>Briolo's AI watches the page and points you to exactly what to do next to connect your Meta Business assets. It never clicks for you — you stay in control.</p>
   </div>
-  <div class="ai-mode"><span class="ai-dot off" id="ai-dot"></span><span id="ai-mode-text">AI mode: off (text-match fallback)</span></div>
+  <div class="ai-mode"><span class="ai-dot off" id="ai-dot"></span><span id="ai-mode-text">AI mode: off</span></div>
   <button class="btn btn-start" id="btn-start">Start Meta Connection &rarr;</button>
 </div>
 
 <div id="workflow-screen" style="display:none">
-  <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
-  <div class="card">
-    <div class="step-counter">Step <span id="step-num">1</span> of <span id="step-total">&mdash;</span></div>
-    <div class="step-name" id="step-name">&mdash;</div>
-    <div class="instruction" id="instruction-text">&mdash;</div>
-    <div id="confidence-badge"></div>
+  <div class="goal-row">
+    <span class="goal-name" id="goal-name">&mdash;</span>
+    <span class="think" id="think" style="display:none"><span class="think-dot"></span>Looking at your screen…</span>
   </div>
-  <div class="ai-hint" id="ai-hint" style="display:none">AI assist is disabled &mdash; running on text matching only. If a highlight looks off, use &ldquo;I&apos;m Stuck&rdquo; to re-scan.</div>
-  <button class="btn btn-primary" id="btn-next">&#10003; Mark Complete &amp; Next</button>
-  <button class="btn btn-secondary" id="btn-stuck">? I&apos;m Stuck &mdash; Highlight Again</button>
+  <div class="card">
+    <div class="status-pill" id="status-pill" style="display:none"></div>
+    <div class="ai-msg" id="ai-msg">Getting my bearings…</div>
+    <div class="ai-why" id="ai-why" style="display:none"></div>
+  </div>
+  <div class="ai-hint" id="ai-hint" style="display:none">AI key isn&apos;t set, so I can&apos;t see your screen. Add ANTHROPIC_API_KEY and rebuild to enable live guidance.</div>
+  <button class="btn btn-primary" id="btn-next">I&apos;ve done this &mdash; what&apos;s next?</button>
+  <button class="btn btn-secondary" id="btn-stuck">I&apos;m Stuck &mdash; take another look</button>
   <hr class="divider">
   <button class="btn btn-danger" id="btn-stop">&#10007; Stop Guidance</button>
   <div class="status" id="status-msg"></div>
@@ -72,8 +87,8 @@ h1 { font-size: 18px; font-weight: 700; color: #ff8a00; margin-bottom: 4px; }
 <div id="done-screen" style="display:none">
   <div class="card" style="text-align:center">
     <div style="font-size:34px; line-height:1; margin-bottom:10px; color:#4caf50">&#10003;</div>
-    <div class="step-name" style="margin-bottom:6px">Workflow complete</div>
-    <div class="instruction">Your Meta assets are connected. You can close this panel.</div>
+    <div class="step-name" style="margin-bottom:6px">All done</div>
+    <div class="instruction">Your Meta token is generated and copied. Paste it into Briolo to finish.</div>
   </div>
   <button class="btn btn-secondary" id="btn-restart">Start again</button>
 </div>

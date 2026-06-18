@@ -1,16 +1,11 @@
 let lastStateJson = '';
-// Timestamp until which the polling render must not overwrite a user-visible
-// status message. Set whenever we show a transient status; render() respects it.
-let statusHoldUntil = 0;
-// Inline two-tap stop confirmation state.
-let stopArmed = false;
+let statusHoldUntil = 0;     // don't let polling wipe a transient status message
+let stopArmed = false;       // inline two-tap stop confirmation
 let stopArmTimer = null;
 
 async function getState() {
   return new Promise(resolve => {
-    chrome.runtime.sendMessage({ type: 'GET_STATE' }, res => {
-      resolve(res || { enabled: false });
-    });
+    chrome.runtime.sendMessage({ type: 'GET_STATE' }, res => resolve(res || { enabled: false }));
   });
 }
 
@@ -21,8 +16,6 @@ function setStatus(text, holdMs) {
 }
 
 function clearStatusIfMine() {
-  // Only clear if the hold window has elapsed (avoids wiping a fresh message
-  // queued by another interaction).
   if (Date.now() >= statusHoldUntil) {
     const el = document.getElementById('status-msg');
     if (el) el.textContent = '';
@@ -30,42 +23,38 @@ function clearStatusIfMine() {
   }
 }
 
-function setBadge(confidence) {
-  const el = document.getElementById('confidence-badge');
-  if (!el) return;
-  if (confidence === null || confidence === undefined) { el.textContent = ''; el.className = 'badge'; return; }
-  const cls = confidence >= 70 ? 'badge-green' : confidence >= 40 ? 'badge-amber' : 'badge-red';
-  el.className = 'badge ' + cls;
-  el.textContent = confidence + '% match';
-}
-
 function setAiMode(hasApiKey) {
   const dot = document.getElementById('ai-dot');
   const text = document.getElementById('ai-mode-text');
   if (dot) dot.className = 'ai-dot ' + (hasApiKey ? 'on' : 'off');
-  if (text) text.textContent = hasApiKey
-    ? 'AI mode: on'
-    : 'AI mode: off (text-match fallback)';
+  if (text) text.textContent = hasApiKey ? 'AI mode: on' : 'AI mode: off (no key)';
+}
+
+// Status pill: only surface the states the user needs to act on.
+function setStatusPill(status) {
+  const el = document.getElementById('status-pill');
+  if (!el) return;
+  if (status === 'wrong-page') {
+    el.style.display = ''; el.className = 'status-pill pill-amber'; el.textContent = 'Wrong page — navigate first';
+  } else if (status === 'blocked') {
+    el.style.display = ''; el.className = 'status-pill pill-red'; el.textContent = 'Need your help';
+  } else {
+    el.style.display = 'none';
+  }
 }
 
 function render(state) {
-  // hasApiKey can change independently of workflow state, so always refresh the
-  // start-screen indicator before the dedup short-circuit.
+  // AI-mode indicator can change independent of run state — refresh before dedup.
   setAiMode(!!state.hasApiKey);
 
   const json = JSON.stringify(state);
-  if (json === lastStateJson) {
-    // State unchanged — still let an expired status message clear itself.
-    clearStatusIfMine();
-    return;
-  }
+  if (json === lastStateJson) { clearStatusIfMine(); return; }
   lastStateJson = json;
 
   const startScreen = document.getElementById('start-screen');
   const workflowScreen = document.getElementById('workflow-screen');
   const doneScreen = document.getElementById('done-screen');
 
-  // Terminal state takes priority — show the completion view.
   if (state.completed) {
     startScreen.style.display = 'none';
     workflowScreen.style.display = 'none';
@@ -86,85 +75,77 @@ function render(state) {
   workflowScreen.style.display = '';
   if (doneScreen) doneScreen.style.display = 'none';
 
-  const step = state.step || {};
-  const idx = state.stepIndex ?? 0;
-  const total = state.totalSteps || 0; // 0 until the workflow JSON loads
+  document.getElementById('goal-name').textContent = state.goalName || 'Guidance';
 
-  // Progress: step 1 reads 0%, final step reads 100%. Guard total <= 1.
-  const denom = total > 1 ? total - 1 : 1;
-  const pct = Math.max(0, Math.min(100, Math.round((idx / denom) * 100)));
+  // Thinking indicator while Claude is looking at the screen.
+  const think = document.getElementById('think');
+  if (think) think.style.display = state.thinking ? '' : 'none';
 
-  document.getElementById('step-num').textContent = String(idx + 1);
-  document.getElementById('step-total').textContent = total ? String(total) : '—';
-  document.getElementById('step-name').textContent = step.name || '—';
-  document.getElementById('instruction-text').textContent = step.instruction || '—';
-  document.getElementById('progress-fill').style.width = pct + '%';
-  // Navigation-only steps have no targetText, so a 0%/red "match" badge would
-  // read like a failure — suppress it for those and show it only when there's
-  // an element to match.
-  const hasTarget = !!(step && step.targetText);
-  setBadge(hasTarget ? (state.confidence ?? null) : null);
+  setStatusPill(state.status);
 
-  // Show the AI-disabled hint only when there's no API key AND we have no usable
-  // confidence signal (null or low) — i.e. when AI assist would have helped.
-  const conf = state.confidence;
-  const lowOrNoConfidence = conf === null || conf === undefined || conf < 40;
+  // The live instruction from Claude.
+  const msgEl = document.getElementById('ai-msg');
+  if (msgEl) msgEl.textContent = state.message || (state.thinking ? 'Looking at your screen…' : 'Getting my bearings…');
+
+  // The "why" — shown when Claude provided reasoning.
+  const whyEl = document.getElementById('ai-why');
+  if (whyEl) {
+    if (state.reasoning) { whyEl.style.display = ''; whyEl.innerHTML = '<b>Why:</b> ' + escapeHtml(state.reasoning); }
+    else whyEl.style.display = 'none';
+  }
+
+  // No-key hint.
   const hint = document.getElementById('ai-hint');
-  if (hint) hint.style.display = (!state.hasApiKey && lowOrNoConfidence) ? '' : 'none';
+  if (hint) hint.style.display = state.hasApiKey ? 'none' : '';
 
   clearStatusIfMine();
 }
 
-async function refresh() {
-  const state = await getState();
-  render(state);
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+
+async function refresh() { render(await getState()); }
 
 function disarmStop() {
   stopArmed = false;
   if (stopArmTimer) { clearTimeout(stopArmTimer); stopArmTimer = null; }
   const btn = document.getElementById('btn-stop');
-  if (btn) {
-    btn.classList.remove('confirming');
-    btn.innerHTML = '✗ Stop Guidance';
-  }
+  if (btn) { btn.classList.remove('confirming'); btn.innerHTML = '✗ Stop Guidance'; }
 }
 
-document.getElementById('btn-start').addEventListener('click', async () => {
-  await new Promise(resolve => chrome.runtime.sendMessage({ type: 'START_WORKFLOW', workflowId: 'meta-connect-assets' }, resolve));
-  await refresh();
-});
+function startWorkflow() {
+  lastStateJson = '';
+  return new Promise(resolve => chrome.runtime.sendMessage({ type: 'START_WORKFLOW', workflowId: 'meta-connect-assets' }, resolve));
+}
+
+document.getElementById('btn-start').addEventListener('click', async () => { await startWorkflow(); await refresh(); });
 
 const btnRestart = document.getElementById('btn-restart');
-if (btnRestart) btnRestart.addEventListener('click', async () => {
-  lastStateJson = '';
-  await new Promise(resolve => chrome.runtime.sendMessage({ type: 'START_WORKFLOW', workflowId: 'meta-connect-assets' }, resolve));
-  await refresh();
-});
+if (btnRestart) btnRestart.addEventListener('click', async () => { await startWorkflow(); await refresh(); });
 
 document.getElementById('btn-next').addEventListener('click', async () => {
   disarmStop();
-  setStatus('Moving to next step…', 1500);
+  setStatus('Taking another look…', 2500);
   await new Promise(resolve => chrome.runtime.sendMessage({ type: 'NEXT_STEP' }, resolve));
   await refresh();
 });
 
 document.getElementById('btn-stuck').addEventListener('click', async () => {
   disarmStop();
-  setStatus('Re-highlighting target…', 2000);
+  setStatus('Re-checking your screen…', 2500);
   await new Promise(resolve => chrome.runtime.sendMessage({ type: 'STUCK' }, resolve));
+  await refresh();
 });
 
 document.getElementById('btn-stop').addEventListener('click', async () => {
   const btn = document.getElementById('btn-stop');
   if (!stopArmed) {
-    // First tap: arm and ask for a second tap. Auto-disarm after 3s.
     stopArmed = true;
     if (btn) { btn.classList.add('confirming'); btn.innerHTML = 'Tap again to stop'; }
     stopArmTimer = setTimeout(disarmStop, 3000);
     return;
   }
-  // Second tap: actually stop.
   disarmStop();
   await new Promise(resolve => chrome.runtime.sendMessage({ type: 'STOP' }, resolve));
   lastStateJson = '';
@@ -172,5 +153,5 @@ document.getElementById('btn-stop').addEventListener('click', async () => {
   await refresh();
 });
 
-setInterval(refresh, 1500);
+setInterval(refresh, 1200);
 refresh();

@@ -65,6 +65,9 @@
         if (counter >= 200) break;
         // Defensive credential exclusion (selector already drops password inputs).
         if (isSecretInput(el)) continue;
+        // Skip our own guide UI (driver.js popover + tip) so drawing a highlight
+        // doesn't change the page signature and trigger a re-evaluation loop.
+        try { if (el.closest && (el.closest('.driver-popover') || el.id === '__sg_tip')) continue; } catch (_) {}
         const rect = el.getBoundingClientRect();
         if (rect.width < 2 || rect.height < 2) continue;
         const style = window.getComputedStyle(el);
