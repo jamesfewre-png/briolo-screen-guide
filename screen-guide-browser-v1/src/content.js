@@ -376,4 +376,23 @@
   window.addEventListener('popstate', onUrlMaybeChanged);
   // Backstop for routers that mutate the URL without using the history API.
   setInterval(onUrlMaybeChanged, 1000);
+
+  // ── Click tracking → auto re-evaluate ──────────────────────────────────────
+  // When the user clicks any interactive element (e.g. expands the "Users" menu),
+  // tell the background to re-evaluate the screen — so guidance advances on its
+  // own, without the user pressing "I've done this". Debounced so rapid clicks
+  // coalesce into one evaluation. Capture phase so we still see it if the page
+  // stops propagation.
+  let clickReevalTimer = null;
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    const interactive = t && t.closest && t.closest(
+      'a,button,[role="button"],[role="link"],[role="menuitem"],[role="tab"],[role="option"],[tabindex],input,select,textarea,label,summary'
+    );
+    if (!interactive) return;
+    clearTimeout(clickReevalTimer);
+    clickReevalTimer = setTimeout(() => {
+      try { chrome.runtime.sendMessage({ type: 'USER_ACTED' }, () => void chrome.runtime.lastError); } catch (_) {}
+    }, 450);
+  }, true);
 })();

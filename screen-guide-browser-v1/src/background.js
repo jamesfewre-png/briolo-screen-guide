@@ -21,6 +21,7 @@ const lastElements = {}; // tabId → elements[]
 const lastUrl = {};      // tabId → string
 const lastSig = {};      // tabId → page signature (skip redundant evaluations)
 const pendingAi = {};    // tabId → boolean (one Claude call in flight per tab)
+const pendingRerun = {}; // tabId → boolean (a re-eval was requested while one was in flight)
 const evalTimers = {};   // tabId → debounce timer
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -98,7 +99,9 @@ async function evaluate(tabId, opts) {
   const force = !!(opts && opts.force);
   if (!state.enabled || state.completed || !tabId) return;
   if (!goal) { await loadGoal(); if (!goal) return; }
-  if (pendingAi[tabId]) return;
+  // A call is already in flight — remember to re-run afterwards so a click during
+  // an in-flight evaluation isn't dropped.
+  if (pendingAi[tabId]) { if (force) pendingRerun[tabId] = true; return; }
 
   const elements = lastElements[tabId] || [];
   const url = lastUrl[tabId] || '';
@@ -146,6 +149,7 @@ async function evaluate(tabId, opts) {
       return;
     }
     sendGuidance(tabId, result);
+    maybeRerun(tabId);
   } catch (err) {
     pendingAi[tabId] = false;
     state.thinking = false;
@@ -159,12 +163,18 @@ async function evaluate(tabId, opts) {
       sgId: '', status: 'blocked', confidence: 0,
     };
     sendGuidance(tabId, state.lastGuidance);
+    maybeRerun(tabId);
   }
 }
 
 function scheduleEvaluate(tabId, ms, opts) {
   clearTimeout(evalTimers[tabId]);
   evalTimers[tabId] = setTimeout(() => evaluate(tabId, opts), ms ?? EVAL_DEBOUNCE_MS);
+}
+
+// If a re-eval was requested while a call was in flight, run it now.
+function maybeRerun(tabId) {
+  if (pendingRerun[tabId]) { pendingRerun[tabId] = false; scheduleEvaluate(tabId, 200, { force: true }); }
 }
 
 function activeTabThen(fn) {
@@ -210,6 +220,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // User clicked the highlighted element — re-evaluate once the page reacts.
   if (msg.type === 'STEP_COMPLETE') {
+    if (tabId) scheduleEvaluate(tabId, POST_ACTION_MS, { force: true });
+    sendResponse({ ok: true });
+    return true;
+  }
+
+  // User clicked any interactive element (e.g. expanded a menu) — re-evaluate the
+  // screen automatically so guidance advances without pressing "I've done this".
+  if (msg.type === 'USER_ACTED') {
     if (tabId) scheduleEvaluate(tabId, POST_ACTION_MS, { force: true });
     sendResponse({ ok: true });
     return true;
