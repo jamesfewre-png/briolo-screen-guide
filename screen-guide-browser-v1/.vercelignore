@@ -1,0 +1,10 @@
+# Only the serverless function + static root need to deploy.
+# CRITICAL: never upload dist/ — in dev builds it contains config.json with the API key.
+dist/
+node_modules/
+src/
+build.cjs
+package-lock.json
+tsconfig.json
+vite.config.ts
+.env
