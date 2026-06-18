@@ -201,16 +201,17 @@
     if (hlEl) hlEl.style.display = 'none';
   }
 
-  // Locate a visible, interactive element by its label — the fallback when the
-  // data-sg-id is stale/missing. Exact label match wins; otherwise the shortest
-  // containing text (most precise). Skips our own guide UI.
+  // Locate the SPECIFIC visible element matching a label. Prefers an exact label
+  // match, and among matches the SMALLEST one — i.e. the leaf link/button, not a
+  // parent container (e.g. "System users" itself, not the whole "Users" group
+  // whose text also contains "System users"). Skips our own guide UI.
   function findByText(text) {
     const needle = (text || '').trim().toLowerCase();
     if (!needle) return null;
     const SEL = 'button, a[href], [role="button"], [role="link"], [role="tab"], [role="menuitem"], input, textarea, select, [aria-label]';
-    let best = null, bestScore = 0;
     let nodes;
     try { nodes = document.querySelectorAll(SEL); } catch (_) { return null; }
+    const exact = [], partial = [];
     for (const el of nodes) {
       if (el.id === '__sg_highlight') continue;
       try { if (el.closest && (el.closest('.driver-popover') || el.id === '__sg_tip')) continue; } catch (_) {}
@@ -220,12 +221,15 @@
       if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
       const vt = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
       const al = (el.getAttribute('aria-label') || '').toLowerCase();
-      let score = 0;
-      if (vt === needle || al === needle) score = 6;
-      else if (vt.includes(needle) || al.includes(needle)) score = 3 - Math.min(2, Math.floor(vt.length / 40));
-      if (score > bestScore) { bestScore = score; best = el; }
+      const area = r.width * r.height;
+      if (vt === needle || al === needle) exact.push({ el, area });
+      else if (vt.includes(needle) || al.includes(needle)) partial.push({ el, area, len: vt.length });
     }
-    return bestScore > 0 ? best : null;
+    // Smallest exact match = the precise leaf element.
+    if (exact.length) { exact.sort((a, b) => a.area - b.area); return exact[0].el; }
+    // No exact match: prefer the shortest-text container, then smallest area.
+    if (partial.length) { partial.sort((a, b) => (a.len - b.len) || (a.area - b.area)); return partial[0].el; }
+    return null;
   }
 
   // ── Completion tracking ───────────────────────────────────────────────────
@@ -272,14 +276,15 @@
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'HIGHLIGHT') {
       clearTip();
-      // 1) Try the exact element by id. 2) Fall back to locating it by its visible
-      // label (targetText) — robust to stale ids. 3) Otherwise show a tip.
+      // Prefer the precise label match (the leaf link/button — avoids highlighting
+      // a parent container that merely contains the label). Fall back to the id,
+      // then to any label-based match. Otherwise show a tip.
       let el = null;
-      if (msg.sgId !== null && msg.sgId !== undefined && msg.sgId !== '') {
-        el = document.querySelector('[data-sg-id="' + msg.sgId + '"]');
-      }
-      if ((!el || !document.contains(el)) && msg.targetText) {
+      if (msg.targetText) {
         el = findByText(msg.targetText);
+      }
+      if ((!el || !document.contains(el)) && msg.sgId !== null && msg.sgId !== undefined && msg.sgId !== '') {
+        el = document.querySelector('[data-sg-id="' + msg.sgId + '"]');
       }
       try { console.log('[ScreenGuide] HIGHLIGHT sgId=' + msg.sgId + ' targetText="' + (msg.targetText || '') + '" resolved=' + !!el); } catch (_) {}
       if (el && document.contains(el)) {
