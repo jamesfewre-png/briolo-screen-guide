@@ -19,32 +19,29 @@ h1 { font-size: 18px; font-weight: 700; color: #ff8a00; margin-bottom: 4px; }
 .btn-danger { background: transparent; color: #f44336; border: 1px solid #f44336; }
 .btn-danger.confirming { background: #f44336; color: #fff; }
 .btn-start { background: #ff8a00; color: #fff; font-size: 15px; padding: 14px; }
+.btn-green { background: #2e7d32; color: #fff; }
 .status { font-size: 12px; color: #888; text-align: center; margin-top: 4px; min-height: 15px; }
-#start-screen p { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 20px; }
+.intro { font-size: 13px; color: #888; line-height: 1.6; margin-bottom: 16px; }
 .divider { border: none; border-top: 1px solid #2a2a45; margin: 12px 0; }
 .instruction { font-size: 13px; color: #c0c0d0; line-height: 1.5; }
 .step-name { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 8px; }
 
-/* AI-mode indicator */
 .ai-mode { display: flex; align-items: center; gap: 7px; font-size: 12px; color: #888; margin-bottom: 16px; }
 .ai-dot { width: 8px; height: 8px; border-radius: 50%; background: #555; flex: 0 0 auto; }
 .ai-dot.on { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
 .ai-dot.off { background: #666; }
 
-/* Goal header + thinking */
-.goal-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.goal-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .goal-name { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
 .think { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: #ff8a00; }
 .think-dot { width: 7px; height: 7px; border-radius: 50%; background: #ff8a00; animation: pulse 1s ease-in-out infinite; }
 @keyframes pulse { 0%,100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
 
-/* The live guidance */
 .ai-msg { font-size: 15px; font-weight: 600; color: #fff; line-height: 1.45; }
 .ai-why { font-size: 12px; color: #9a9ab0; line-height: 1.5; margin-top: 10px;
   border-top: 1px solid #2a2a45; padding-top: 10px; }
 .ai-why b { color: #b8b8cc; font-weight: 600; }
 
-/* Status pill */
 .status-pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px;
   font-weight: 600; margin-bottom: 10px; }
 .pill-amber { background: #3a2a00; color: #ff9800; border: 1px solid #ff9800; }
@@ -52,28 +49,121 @@ h1 { font-size: 18px; font-weight: 700; color: #ff8a00; margin-bottom: 4px; }
 
 .ai-hint { font-size: 12px; color: #ff9800; background: #2a1f00; border: 1px solid #4a3a00;
   border-radius: 8px; padding: 9px 11px; line-height: 1.45; margin-bottom: 12px; }
+
+.section-label { font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.guide-btn { width: 100%; text-align: left; padding: 11px 12px; border-radius: 8px; border: 1px solid #2a2a45;
+  background: #1a1a2e; color: #e8e8f0; cursor: pointer; margin-bottom: 8px; transition: border-color 0.15s; }
+.guide-btn:hover { border-color: #ff8a00; }
+.guide-btn .g-name { font-size: 13px; font-weight: 600; }
+.guide-btn .g-obj { font-size: 11px; color: #888; margin-top: 3px; line-height: 1.4; }
+.inp { width: 100%; padding: 9px 11px; margin-bottom: 8px; border-radius: 8px; border: 1px solid #3a3a5a;
+  background: #12121f; color: #e8e8f0; font-size: 13px; font-family: inherit; }
+.inp:focus { outline: none; border-color: #ff8a00; }
+textarea.inp { resize: vertical; }
+.lbl { font-size: 12px; color: #b8b8cc; margin: 10px 0 5px; font-weight: 600; }
+
+/* Plan checklist */
+.plan-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid #2a2a45; background: #1a1a2e; margin-bottom: 8px; }
+.plan-item input[type=checkbox] { margin-top: 3px; accent-color: #ff8a00; width: 15px; height: 15px; flex: 0 0 auto; }
+.plan-item .p-name { font-size: 13px; font-weight: 600; color: #fff; }
+.plan-item .p-reason { font-size: 11.5px; color: #9a9ab0; margin-top: 3px; line-height: 1.45; }
+
+/* Plan strip (progress across the session) */
+.plan-strip { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.strip-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: #888; }
+.strip-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; background: #3a3a5a; }
+.strip-dot.done { background: #4caf50; }
+.strip-dot.current { background: #ff8a00; box-shadow: 0 0 6px #ff8a00; }
+.strip-row.current { color: #e8e8f0; font-weight: 600; }
+.strip-row.done { color: #7da87f; }
+
+/* Finish line */
+.finish-card { background: #14231a; border: 1px solid #2e7d32; border-radius: 10px; padding: 16px; margin-bottom: 12px; }
+.finish-title { font-size: 16px; font-weight: 700; color: #7be382; margin-bottom: 6px; }
+.finish-note { font-size: 12.5px; color: #b8ccb8; line-height: 1.5; margin-bottom: 12px; }
+.ritual { list-style: none; counter-reset: r; margin-bottom: 4px; }
+.ritual li { counter-increment: r; display: flex; gap: 9px; font-size: 13px; color: #dfe8df;
+  line-height: 1.45; margin-bottom: 9px; }
+.ritual li::before { content: counter(r); flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%;
+  background: #2e7d32; color: #fff; font-size: 12px; font-weight: 700; display: inline-flex;
+  align-items: center; justify-content: center; }
+
+/* Verifying */
+.verify-spin { display: flex; align-items: center; gap: 10px; font-size: 14px; color: #e8e8f0; padding: 8px 0; }
+.spinner { width: 16px; height: 16px; border: 2.5px solid #3a3a5a; border-top-color: #ff8a00;
+  border-radius: 50%; animation: spin 0.9s linear infinite; flex: 0 0 auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Flag mode */
+.flag-banner { background: #2a1f00; border: 2px solid #ff9800; border-radius: 10px; padding: 18px 16px;
+  text-align: center; margin-bottom: 12px; }
+.flag-title { font-size: 17px; font-weight: 700; color: #ffb84d; margin-bottom: 8px; }
+.flag-sub { font-size: 13px; color: #d8c9a8; line-height: 1.55; }
+
+/* All done */
+.done-item { display: flex; gap: 9px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid #2a2a45; }
+.done-item:last-child { border-bottom: none; }
+.done-check { color: #4caf50; font-weight: 700; flex: 0 0 auto; }
+.done-item .d-name { font-size: 13px; font-weight: 600; color: #fff; }
+.done-item .d-detail { font-size: 11.5px; color: #7da87f; margin-top: 2px; }
+.done-item .d-note { font-size: 11.5px; color: #b0a070; margin-top: 2px; }
 </style>
 </head>
 <body>
-<h1>AI Screen Guide</h1>
-<p class="subtitle">Live, AI-guided onboarding</p>
+<h1 id="brand-title">AI Screen Guide</h1>
+<p class="subtitle" id="brand-sub">Live, AI-guided setup</p>
 
-<div id="start-screen">
-  <div class="card">
-    <p>Briolo's AI watches the page and points you to exactly what to do next to connect your Meta Business assets. It never clicks for you — you stay in control.</p>
-  </div>
+<!-- INTAKE (default) -->
+<div id="intake-screen">
+  <p class="intro" id="intake-intro">Tell me about your business and the job you want to hand to a robot. I will work out which connections you need, you approve the plan, and I guide you through each one — you click everything, I only point.</p>
   <div class="ai-mode"><span class="ai-dot off" id="ai-dot"></span><span id="ai-mode-text">AI mode: off</span></div>
-  <button class="btn btn-start" id="btn-start">Start Meta Connection &rarr;</button>
+  <div class="lbl">What&apos;s your business?</div>
+  <textarea class="inp" id="intake-business" rows="2" placeholder="e.g. Mobile dog grooming in Joondalup, just me and a van."></textarea>
+  <div class="lbl">What&apos;s the job you want to hand to a robot?</div>
+  <textarea class="inp" id="intake-job" rows="2" placeholder="e.g. Replying to enquiries that come in while I&apos;m working."></textarea>
+  <button class="btn btn-start" id="btn-build-plan">Build my plan &rarr;</button>
+  <div class="status" id="intake-status"></div>
+  <hr class="divider">
+  <button class="btn btn-secondary" id="btn-advanced-toggle">Choose a specific guide&hellip;</button>
+  <div id="advanced-area" style="display:none; margin-top:8px">
+    <div class="section-label">Guides</div>
+    <div id="guide-list"><div class="subtitle">Loading guides&hellip;</div></div>
+    <button class="btn btn-secondary" id="btn-custom-toggle">Custom goal&hellip;</button>
+    <div id="custom-form" style="display:none; margin-top:8px">
+      <input class="inp" id="custom-name" placeholder="Guide name (e.g. Connect GA4)">
+      <textarea class="inp" id="custom-objective" rows="3" placeholder="What should the user accomplish? Describe the goal in plain English."></textarea>
+      <input class="inp" id="custom-url" placeholder="Start URL (optional)">
+      <button class="btn btn-start" id="btn-custom-start">Start custom guide &rarr;</button>
+    </div>
+  </div>
 </div>
 
+<!-- TRIAGE -->
+<div id="triage-screen" style="display:none">
+  <div class="card"><div class="verify-spin"><span class="spinner"></span>Reading what you told me and picking your connections&hellip;</div></div>
+</div>
+
+<!-- PLAN -->
+<div id="plan-screen" style="display:none">
+  <div class="section-label">Your connection plan</div>
+  <p class="intro" style="margin-bottom:12px">Here&apos;s what I think you need, and why. Untick anything that doesn&apos;t fit — then we&apos;ll do them together, one at a time.</p>
+  <div id="plan-list"></div>
+  <button class="btn btn-start" id="btn-confirm-plan">Looks right — let&apos;s start &rarr;</button>
+  <button class="btn btn-secondary" id="btn-plan-back">Start over</button>
+  <div class="status" id="plan-status"></div>
+</div>
+
+<!-- GUIDANCE -->
 <div id="workflow-screen" style="display:none">
+  <div class="plan-strip" id="plan-strip"></div>
   <div class="goal-row">
     <span class="goal-name" id="goal-name">&mdash;</span>
-    <span class="think" id="think" style="display:none"><span class="think-dot"></span>Looking at your screen…</span>
+    <span class="think" id="think" style="display:none"><span class="think-dot"></span>Looking at your screen&hellip;</span>
   </div>
   <div class="card">
     <div class="status-pill" id="status-pill" style="display:none"></div>
-    <div class="ai-msg" id="ai-msg">Getting my bearings…</div>
+    <div class="ai-msg" id="ai-msg">Getting my bearings&hellip;</div>
     <div class="ai-why" id="ai-why" style="display:none"></div>
   </div>
   <div class="ai-hint" id="ai-hint" style="display:none">AI key isn&apos;t set, so I can&apos;t see your screen. Add ANTHROPIC_API_KEY and rebuild to enable live guidance.</div>
@@ -84,12 +174,46 @@ h1 { font-size: 18px; font-weight: 700; color: #ff8a00; margin-bottom: 4px; }
   <div class="status" id="status-msg"></div>
 </div>
 
+<!-- FINISH LINE -->
+<div id="finish-screen" style="display:none">
+  <div class="plan-strip" id="finish-strip"></div>
+  <div class="finish-card">
+    <div class="finish-title">Your token is on screen &#127881;</div>
+    <div class="finish-note" id="finish-note">Treat it like a password — don&apos;t screenshot it, don&apos;t email it to yourself.</div>
+    <ol class="ritual">
+      <li>Click <b>Copy</b> next to the token on the page.</li>
+      <li id="ritual-dest">Open your dashboard and find this connection&apos;s slot.</li>
+      <li>Paste it in and save.</li>
+    </ol>
+  </div>
+  <div class="ai-hint" id="signin-hint" style="display:none">You don&apos;t seem signed in to your dashboard in this browser — do the sign-in step first, or wave your facilitator over.</div>
+  <button class="btn btn-primary" id="btn-open-dashboard" style="display:none">Open your dashboard &rarr;</button>
+  <button class="btn btn-green" id="btn-attest">I&apos;ve pasted it into my dashboard</button>
+  <button class="btn btn-secondary" id="btn-finish-stuck">I&apos;m Stuck &mdash; take another look</button>
+</div>
+
+<!-- VERIFYING -->
+<div id="verify-screen" style="display:none">
+  <div class="card"><div class="verify-spin"><span class="spinner"></span>Checking the connection actually works&hellip;</div></div>
+</div>
+
+<!-- FLAGGED -->
+<div id="flag-screen" style="display:none">
+  <div class="flag-banner">
+    <div class="flag-title">Keep your seat &#9995;</div>
+    <div class="flag-sub" id="flag-sub">Your facilitator will come to you. Nothing is broken — this one just needs a human eye.</div>
+  </div>
+  <button class="btn btn-secondary" id="btn-flag-resume">We sorted it &mdash; keep going</button>
+</div>
+
+<!-- ALL DONE -->
 <div id="done-screen" style="display:none">
   <div class="card" style="text-align:center">
     <div style="font-size:34px; line-height:1; margin-bottom:10px; color:#4caf50">&#10003;</div>
-    <div class="step-name" style="margin-bottom:6px">All done</div>
-    <div class="instruction">Your Meta token is generated and copied. Paste it into Briolo to finish.</div>
+    <div class="step-name" style="margin-bottom:6px">All connected</div>
+    <div class="instruction" id="done-msg">Every connection in your plan is done.</div>
   </div>
+  <div class="card" id="done-list"></div>
   <button class="btn btn-secondary" id="btn-restart">Start again</button>
 </div>
 

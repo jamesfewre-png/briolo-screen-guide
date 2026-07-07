@@ -1,8 +1,12 @@
 {
   "id": "meta-connect-assets",
-  "name": "Connect Meta Business Assets",
-  "objective": "Guide a non-technical business owner through Meta Business Settings to create a system user, assign their Facebook Page, Ad Account and Instagram account to it, generate a long-lived access token, and copy that token so it can be pasted into the Briolo dashboard. Start from business.facebook.com. Read the live screen each step and adapt to whatever Meta's current UI actually shows — menus may be nested, labels may differ, and dialogs may appear. Always point to the next real control and explain plainly why.",
-  "successCriteria": "A system user exists with the user's assets assigned, a system-user access token has been generated and copied to the clipboard, and the user is ready to paste it into Briolo. Treat the task as complete once the token has been generated and copied.",
+  "name": "Connect Facebook & Instagram (Meta)",
+  "objective": "Guide a non-technical business owner through Meta Business Settings to create a system user, assign their Facebook Page, Ad Account and Instagram account to it, generate a long-lived access token, and copy that token so it can be pasted into their dashboard. Start from business.facebook.com. Read the live screen each step and adapt to whatever Meta's current UI actually shows — menus may be nested, labels may differ, and dialogs may appear. Always point to the next real control and explain plainly why.",
+  "successCriteria": "A system user exists with the user's assets assigned, a system-user access token has been generated and is visible on screen ready to copy. Treat the task as complete once the token is revealed on screen.",
   "startUrl": "https://business.facebook.com/latest/settings",
-  "notes": "Never read or repeat the token's characters. The human performs every click and keystroke; only point and explain."
+  "notes": "Never read or repeat the token's characters. The human performs every click and keystroke; only point and explain.",
+  "patterns": ["auto-reply", "social-content", "ads"],
+  "verify": { "providers": ["meta"], "detailLabel": "Facebook Page" },
+  "deepLink": "connections/meta",
+  "finishLine": "That long string is your Meta access token — treat it like a password."
 }

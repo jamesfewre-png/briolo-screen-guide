@@ -18,18 +18,30 @@ for (const f of ['background.js', 'content.js', 'panel.html', 'panel.js', 'manif
 cpSync(join(src, 'vendor', 'driver.js'), join(dist, 'vendor', 'driver.js'));
 cpSync(join(src, 'vendor', 'driver.css'), join(dist, 'vendor', 'driver.css'));
 
-// Copy ALL workflow JSON files so new workflows ship automatically (no hardcoding)
+// Copy ALL goal JSON files so new guides ship automatically (no hardcoding), and
+// build workflows/index.json so the panel can list available guides at runtime
+// (extensions can't readdir() packaged files).
 const workflowSrc = join(src, 'workflows');
 let workflowCount = 0;
+const goalIndex = [];
 if (existsSync(workflowSrc)) {
   for (const f of readdirSync(workflowSrc)) {
-    if (f.toLowerCase().endsWith('.json')) {
-      cpSync(join(workflowSrc, f), join(dist, 'workflows', f));
-      workflowCount++;
-    }
+    if (!f.toLowerCase().endsWith('.json') || f.toLowerCase() === 'index.json') continue;
+    cpSync(join(workflowSrc, f), join(dist, 'workflows', f));
+    workflowCount++;
+    try {
+      const g = JSON.parse(readFileSync(join(workflowSrc, f), 'utf8'));
+      if (g && g.id && g.name) goalIndex.push({
+        id: g.id, name: g.name, objective: g.objective || '',
+        patterns: Array.isArray(g.patterns) ? g.patterns : [],
+        deepLink: g.deepLink || '',
+        hasVerify: !!(g.verify && Array.isArray(g.verify.providers) && g.verify.providers.length),
+      });
+    } catch (_) { console.warn(`Skipping malformed goal file: ${f}`); }
   }
 }
-console.log(`Copied ${workflowCount} workflow file(s) from ${workflowSrc}/`);
+writeFileSync(join(dist, 'workflows', 'index.json'), JSON.stringify(goalIndex, null, 2));
+console.log(`Copied ${workflowCount} guide(s); index.json lists ${goalIndex.length}.`);
 
 // ── Config injection (dist/config.json — gitignored, never committed) ──────────
 // PRODUCTION: if GUIDE_PROXY_URL is set, ship the proxy URL + shared secret and
@@ -50,16 +62,27 @@ const proxyUrl = readAny('GUIDE_PROXY_URL');
 const proxySecret = readAny('GUIDE_SHARED_SECRET');
 const apiKey = readAny('ANTHROPIC_API_KEY');
 
+// Deployment identity (all optional): the brand shown in the panel, the dashboard
+// the finish-line hands tokens into, and the facilitator named in flag mode.
+const extras = {};
+const brand = readAny('GUIDE_BRAND');
+const dashboardUrl = readAny('GUIDE_DASHBOARD_URL');
+const facilitatorName = readAny('GUIDE_FACILITATOR_NAME');
+if (brand) extras.brand = brand;
+if (dashboardUrl) extras.dashboardUrl = dashboardUrl.replace(/\/$/, '');
+if (facilitatorName) extras.facilitatorName = facilitatorName;
+
 if (proxyUrl) {
-  const cfg = { proxyUrl };
+  const cfg = Object.assign({ proxyUrl }, extras);
   if (proxySecret) cfg.proxySecret = proxySecret;
   writeFileSync(join(dist, 'config.json'), JSON.stringify(cfg));
   console.log(`Proxy mode: dist/config.json -> ${proxyUrl} (no API key shipped)`);
 } else if (apiKey) {
-  writeFileSync(join(dist, 'config.json'), JSON.stringify({ claudeApiKey: apiKey }));
+  writeFileSync(join(dist, 'config.json'), JSON.stringify(Object.assign({ claudeApiKey: apiKey }, extras)));
   console.log('Dev mode: API key injected into dist/config.json');
   console.log('REMINDER: dist/ is gitignored — never commit it (it contains your API key).');
 } else {
+  writeFileSync(join(dist, 'config.json'), JSON.stringify(extras));
   console.warn('--------------------------------------------------------------------');
   console.warn('WARNING: no GUIDE_PROXY_URL and no ANTHROPIC_API_KEY in ./.env or ../.env');
   console.warn('Build completes, but AI guidance is DISABLED until you set one and rebuild.');

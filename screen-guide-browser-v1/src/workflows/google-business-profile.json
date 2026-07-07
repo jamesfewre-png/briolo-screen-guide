@@ -1,0 +1,12 @@
+{
+  "id": "google-business-profile",
+  "name": "Connect Google Business Profile (reviews)",
+  "objective": "Guide a non-technical business owner through Google Cloud Console to set up access to their Google Business Profile so a robot can help with review requests and replies. From console.cloud.google.com: sign in with the Google account that owns their Business Profile, create or select a project, enable the Business Profile APIs, configure the OAuth consent screen, create an OAuth client, and complete the authorisation so an access credential is issued ready to copy. Google may require an access request form for the Business Profile API — if the screen shows an approval or request step, explain it plainly and guide them to submit it; the flow may need to pause until Google approves. Read the live screen each step and adapt to whatever the console currently shows.",
+  "successCriteria": "An access credential for the Business Profile API is issued and visible ready to copy, or the access request has been submitted and the user understands the wait. Treat the task as complete once a credential is revealed on screen.",
+  "startUrl": "https://console.cloud.google.com/",
+  "notes": "Never read or repeat credential characters. The human performs every click and keystroke; only point and explain. This is the most involved connection — reassure the user that the multi-step setup is normal.",
+  "patterns": ["reviews"],
+  "verify": { "providers": ["google-business"], "detailLabel": "business name" },
+  "deepLink": "connections/google-business",
+  "finishLine": "This credential lets your robot politely ask customers for Google reviews."
+}

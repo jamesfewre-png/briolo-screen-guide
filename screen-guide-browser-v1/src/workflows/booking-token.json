@@ -1,0 +1,12 @@
+{
+  "id": "booking-token",
+  "name": "Connect your booking calendar (Cal.com or Calendly)",
+  "objective": "Guide a non-technical business owner to create an API key for their booking tool so a robot can manage bookings and reminders. Default to Cal.com: from app.cal.com, sign in, open Settings then Developer then API Keys, create a new key, and reveal it ready to copy. If they use Calendly instead, adapt and guide them through calendly.com integrations to generate a personal access token. Read the live screen each step and adapt to whatever the app currently shows.",
+  "successCriteria": "A booking-tool API key or personal access token is revealed on screen ready to copy. Treat the task as complete once it is visible.",
+  "startUrl": "https://app.cal.com/settings/developer/api-keys",
+  "notes": "Never read or repeat the key's characters. The human performs every click and keystroke; only point and explain.",
+  "patterns": ["booking"],
+  "verify": { "providers": ["calcom", "calendly"], "detailLabel": "booking account" },
+  "deepLink": "connections/booking",
+  "finishLine": "This key lets your robot see and manage your bookings — nothing else."
+}

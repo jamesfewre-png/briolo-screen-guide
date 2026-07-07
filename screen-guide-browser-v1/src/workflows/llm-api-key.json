@@ -1,0 +1,12 @@
+{
+  "id": "llm-api-key",
+  "name": "Get your AI brain key (Claude or OpenAI)",
+  "objective": "Guide a non-technical business owner to create an API key for the AI that will write their replies and content. Default to Anthropic Claude: from console.anthropic.com, sign in or create an account, open API Keys in settings, create a new key named after their business, and reveal it ready to copy. If the user or their facilitator prefers OpenAI, adapt and guide them through platform.openai.com to create an API key there instead. Read the live screen each step and adapt to whatever the console currently shows. Note: creating a key may require billing setup first — if the screen asks for billing or a payment method, guide them through that calmly as a normal part of setup.",
+  "successCriteria": "A newly created API key is revealed on screen ready to copy. Treat the task as complete once the key is visible.",
+  "startUrl": "https://console.anthropic.com/settings/keys",
+  "notes": "Never read or repeat the key's characters. The human performs every click and keystroke; only point and explain.",
+  "patterns": ["auto-reply", "booking", "quotes-invoices", "reviews", "social-content", "faq-chatbot"],
+  "verify": { "providers": ["anthropic", "openai"], "detailLabel": "AI key" },
+  "deepLink": "connections/llm",
+  "finishLine": "This key is the robot's brain — it lets your automation write replies in your voice."
+}

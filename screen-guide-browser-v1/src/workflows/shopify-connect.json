@@ -1,0 +1,8 @@
+{
+  "id": "shopify-connect",
+  "name": "Connect Shopify Store",
+  "objective": "Guide a non-technical store owner through their Shopify admin to create a custom app, grant it the Admin API scopes Briolo needs, install the app, then reveal and copy the Admin API access token so it can be pasted into Briolo. Start from the Shopify admin. Read the live screen each step and adapt to whatever Shopify's current UI shows — the usual path is Settings, then Apps and sales channels, then Develop apps, but labels and nesting may differ. Always point to the next real control and explain plainly why.",
+  "successCriteria": "A custom app exists with Admin API scopes configured, the app is installed on the store, and the Admin API access token has been revealed and copied, ready to paste into Briolo. Treat the task as complete once the token has been revealed and copied.",
+  "startUrl": "https://admin.shopify.com",
+  "notes": "Starter guide — adapt to the store's actual Shopify plan and permissions. Never read or repeat the token's characters. The human performs every click and keystroke; only point and explain."
+}

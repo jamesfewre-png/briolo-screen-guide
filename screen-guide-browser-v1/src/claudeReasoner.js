@@ -11,8 +11,11 @@ const FETCH_TIMEOUT_MS = 20000; // vision calls are heavier — allow more time
 const MAX_ATTEMPTS = 2;
 const BACKOFF_BASE_MS = 600;
 
-// Strip credential-like runs from any free text the model returns.
+// Strip credential-like runs from any free text the model returns. Broadened to
+// also catch JWTs (dotted segments) and long hex digests, not just opaque runs.
 const TOKEN_LIKE_RE = /[A-Za-z0-9_\-]{20,}/g;
+const JWT_LIKE_RE = /[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+/g;
+const HEX_LIKE_RE = /\b[0-9a-fA-F]{16,}\b/g;
 
 const GUIDANCE_TOOL = {
   name: 'provide_guidance',
@@ -47,6 +50,10 @@ const GUIDANCE_TOOL = {
         type: 'string',
         enum: ['guiding', 'wrong-page', 'complete', 'blocked'],
         description: 'guiding = normal next step; wrong-page = user must navigate elsewhere first; complete = the goal is achieved; blocked = cannot determine a safe next step.'
+      },
+      tokenRevealed: {
+        type: 'boolean',
+        description: 'true ONLY when the credential/token/key the goal is working toward is visible on screen right now (even partially masked). Otherwise false or omitted.'
       }
     }
   }
@@ -73,13 +80,19 @@ Hard rules (non-negotiable):
 - NEVER instruct in a way that assumes you clicked — the human does every click and keystroke. You only point and explain.
 - NEVER echo credential values (tokens, passwords, API keys) in message or reasoning. You may say "copy the token shown" but never repeat its characters.
 - message must be <= 90 characters, plain English, no markdown, no asterisks.
+- The moment the credential/token/key the goal seeks is visible on screen (even partially masked), set tokenRevealed true AND status "complete" — the panel takes over from there with copy/paste instructions.
 - Always call provide_guidance exactly once.`;
 
 function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 function sanitize(text) {
   if (typeof text !== 'string') return '';
-  return text.replace(TOKEN_LIKE_RE, '').replace(/\s{2,}/g, ' ').trim();
+  return text
+    .replace(JWT_LIKE_RE, '')
+    .replace(TOKEN_LIKE_RE, '')
+    .replace(HEX_LIKE_RE, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 async function attemptFetch(body, apiKey) {
@@ -129,13 +142,14 @@ function isRetryable(err) {
 // PRODUCTION path: call the Briolo backend proxy instead of Anthropic directly.
 // The proxy holds the real API key server-side; the extension only carries a
 // shared secret. Returns the same { reasoning, message, sgId, confidence, status }.
-async function analyzeViaProxy({ goal, recentActions, elements, screenshotDataUrl, currentUrl, proxyUrl, proxySecret }) {
+async function analyzeViaProxy({ goal, recentActions, elements, screenshotDataUrl, currentUrl, proxyUrl, proxySecret, installId }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   let res;
   try {
     const headers = { 'Content-Type': 'application/json' };
     if (proxySecret) headers['x-guide-secret'] = proxySecret;
+    if (installId) headers['x-guide-install'] = installId;
     res = await fetch(proxyUrl, {
       method: 'POST',
       headers,
@@ -162,7 +176,8 @@ async function analyzeViaProxy({ goal, recentActions, elements, screenshotDataUr
     sgId: typeof input.sgId === 'string' ? input.sgId : '',
     targetText: typeof input.targetText === 'string' ? sanitize(input.targetText) : '',
     confidence: typeof input.confidence === 'number' ? input.confidence : 0,
-    status: input.status || 'guiding'
+    status: input.status || 'guiding',
+    tokenRevealed: input.tokenRevealed === true
   };
 }
 
@@ -171,10 +186,10 @@ async function analyzeViaProxy({ goal, recentActions, elements, screenshotDataUr
 // elements: [{ sgId, tag, visibleText, ariaLabel, placeholder, name }]
 // screenshotDataUrl: "data:image/jpeg;base64,..." (optional but strongly preferred)
 // proxyUrl/proxySecret: if set, route through the Briolo backend (key stays server-side)
-async function analyzeWithClaude({ goal, recentActions, elements, screenshotDataUrl, currentUrl, apiKey, proxyUrl, proxySecret }) {
+async function analyzeWithClaude({ goal, recentActions, elements, screenshotDataUrl, currentUrl, apiKey, proxyUrl, proxySecret, installId }) {
   // Production: proxy mode — no API key in the browser.
   if (proxyUrl) {
-    return analyzeViaProxy({ goal, recentActions, elements, screenshotDataUrl, currentUrl, proxyUrl, proxySecret });
+    return analyzeViaProxy({ goal, recentActions, elements, screenshotDataUrl, currentUrl, proxyUrl, proxySecret, installId });
   }
   // Dev fallback: direct call to Anthropic (requires apiKey in the extension).
   const payload = {
@@ -241,8 +256,105 @@ async function analyzeWithClaude({ goal, recentActions, elements, screenshotData
     sgId: typeof input.sgId === 'string' ? input.sgId : '',
     targetText: typeof input.targetText === 'string' ? sanitize(input.targetText) : '',
     confidence: typeof input.confidence === 'number' ? input.confidence : 0,
-    status: input.status || 'guiding'
+    status: input.status || 'guiding',
+    tokenRevealed: input.tokenRevealed === true
   };
 }
 
 self.analyzeWithClaude = analyzeWithClaude;
+
+// ── Triage: business description -> proposed connection plan ────────────────────
+// Given what the owner typed (their business + the job they circled) and the
+// installed guide library, propose which connections they need, in order, with a
+// one-line plain-English reason each. The human confirms/edits before anything runs.
+const TRIAGE_TOOL = {
+  name: 'propose_plan',
+  description: 'Propose which connection guides this business owner needs, in the order they should run.',
+  input_schema: {
+    type: 'object',
+    required: ['connections'],
+    properties: {
+      connections: {
+        type: 'array',
+        items: {
+          type: 'object',
+          required: ['workflowId', 'reason'],
+          properties: {
+            workflowId: { type: 'string', description: 'The id of a guide from the provided library. NEVER invent an id.' },
+            reason: { type: 'string', description: 'One plain-English sentence, max 100 chars, tying this connection to what THEY said. e.g. "You said customers DM you on Instagram - this lets a robot reply there."' }
+          }
+        }
+      }
+    }
+  }
+};
+
+const TRIAGE_PROMPT = `You are planning which platform connections a non-technical small-business owner needs so a robot can take over ONE repetitive job they described. You are given their business description, the job they want automated, and a library of available connection guides (each with an id, name, objective, and the automation patterns it serves).
+
+Rules:
+- Choose ONLY from the provided library ids. Never invent a connection.
+- Include a guide only if THIS owner's described job actually needs it. Fewer, correct connections beat more.
+- An AI/LLM key guide (if present) is almost always needed - it is the brain that writes replies and content.
+- Order: put the connection most central to their described job first; the AI key second; supporting connections after.
+- Each reason must reference what THEY said, in plain English a tradesperson would nod along to. No jargon.
+- Call propose_plan exactly once.`;
+
+async function triageWithClaude({ business, job, library, apiKey, proxyUrl, proxySecret, installId }) {
+  const payload = {
+    business: String(business || '').slice(0, 600),
+    job: String(job || '').slice(0, 600),
+    library: (library || []).map(g => ({
+      id: g.id, name: g.name,
+      objective: (g.objective || '').slice(0, 200),
+      patterns: g.patterns || [],
+    })),
+  };
+
+  // Production: route through the proxy with mode=triage (key stays server-side).
+  if (proxyUrl) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    let res;
+    try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (proxySecret) headers['x-guide-secret'] = proxySecret;
+      if (installId) headers['x-guide-install'] = installId;
+      res = await fetch(proxyUrl, {
+        method: 'POST', headers,
+        body: JSON.stringify(Object.assign({ mode: 'triage' }, payload)),
+        signal: controller.signal,
+      });
+    } catch (e) {
+      const err = new Error(e && e.name === 'AbortError' ? 'Proxy timed out' : 'Proxy network error');
+      err.network = true;
+      throw err;
+    } finally { clearTimeout(timer); }
+    if (!res.ok) { const t = await res.text().catch(() => ''); const err = new Error(`Proxy ${res.status}: ${t.slice(0, 200)}`); err.status = res.status; throw err; }
+    const out = await res.json();
+    return Array.isArray(out.connections) ? out.connections : [];
+  }
+
+  // Dev fallback: direct Anthropic call.
+  const body = {
+    model: CLAUDE_MODEL,
+    max_tokens: 1024,
+    system: TRIAGE_PROMPT,
+    tools: [TRIAGE_TOOL],
+    tool_choice: { type: 'tool', name: 'propose_plan' },
+    messages: [{ role: 'user', content: [{ type: 'text', text: JSON.stringify(payload) }] }],
+  };
+  let data, lastErr;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try { data = await attemptFetch(body, apiKey); lastErr = null; break; }
+    catch (e) { lastErr = e; if (attempt < MAX_ATTEMPTS && isRetryable(e)) { await delay(BACKOFF_BASE_MS * Math.pow(2, attempt - 1)); continue; } throw e; }
+  }
+  if (lastErr) throw lastErr;
+  const toolUse = data.content?.find(b => b.type === 'tool_use');
+  if (!toolUse) throw new Error('Claude did not call propose_plan');
+  const conns = (toolUse.input && toolUse.input.connections) || [];
+  return conns
+    .filter(c => c && typeof c.workflowId === 'string')
+    .map(c => ({ workflowId: c.workflowId, reason: sanitize(String(c.reason || '')).slice(0, 140) }));
+}
+
+self.triageWithClaude = triageWithClaude;

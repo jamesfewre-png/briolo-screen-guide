@@ -10,7 +10,7 @@
   // Diagnostic: confirms THIS (fresh) content script is live on the page. If you
   // reload the extension you MUST refresh the page — otherwise the old orphaned
   // script runs and highlights never appear.
-  try { console.log('[ScreenGuide] content script loaded BUILD v0.5.5', { top: IS_TOP, url: location.href }); } catch (_) {}
+  try { console.log('[ScreenGuide] content script loaded BUILD v0.6.0', { top: IS_TOP, url: location.href }); } catch (_) {}
 
   // Driver.js v1 IIFE exports window.driver.js.driver (factory fn, not class)
   const driverFactory = (typeof window !== 'undefined' && window.driver && window.driver.js)
@@ -28,13 +28,25 @@
   // ── Credential safety ─────────────────────────────────────────────────────
   // Long token-like runs (API keys, secrets, OAuth tokens). Stripped from any
   // visibleText before it ever leaves the page.
-  const TOKEN_RE = /[A-Za-z0-9_-]{20,}/g;
+  const TOKEN_RE = /[A-Za-z0-9_-]{20,}/g;            // long opaque tokens/keys
+  const JWT_RE = /[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g; // JSON Web Tokens
+  const HEX_RE = /\b[0-9a-fA-F]{16,}\b/g;            // session ids, HMAC digests
+  // Non-global copies for .test() — a /g regex carries lastIndex between calls,
+  // which makes repeated .test() on the same regex return alternating results.
+  const TOKEN_TEST = /[A-Za-z0-9_-]{20,}/;
+  const JWT_TEST = /[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/;
   // Labels that mark a field as holding a credential value.
-  const SECRET_LABEL_RE = /(token|secret|api[\s_-]?key|\bkey\b|password|passcode|credential)/i;
+  const SECRET_LABEL_RE = /(token|secret|api[\s_-]?key|\bkey\b|password|passcode|credential|2fa|otp|one[\s_-]?time)/i;
 
   function stripTokens(text) {
     if (!text) return '';
-    return text.replace(TOKEN_RE, '').replace(/\s+/g, ' ').trim();
+    return text.replace(JWT_RE, '').replace(TOKEN_RE, '').replace(HEX_RE, '').replace(/\s+/g, ' ').trim();
+  }
+  // Aggressive strip for text from elements known to be in a credential context:
+  // also removes short numeric codes (2FA/OTP/PINs) the general strip would keep.
+  function stripSecretContext(text) {
+    if (!text) return '';
+    return stripTokens(text).replace(/\b\d{4,8}\b/g, '').replace(/\s+/g, ' ').trim();
   }
 
   function isSecretInput(el) {
@@ -80,11 +92,18 @@
         const sgId = counter++;
         el.setAttribute('data-sg-id', String(sgId));
         const rawText = (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+        // If the element's labelling marks it as a credential field, scrub its text
+        // more aggressively (also short numeric codes), not just long tokens.
+        const ctxHint = [
+          el.getAttribute('aria-label'), el.getAttribute('name'),
+          el.getAttribute('placeholder'), el.className && String(el.className),
+        ].filter(Boolean).join(' ');
+        const scrub = SECRET_LABEL_RE.test(ctxHint) ? stripSecretContext : stripTokens;
         elements.push({
           sgId,
           tag: el.tagName.toLowerCase(),
-          visibleText: stripTokens(rawText),
-          ariaLabel: stripTokens(el.getAttribute('aria-label') || ''),
+          visibleText: scrub(rawText),
+          ariaLabel: scrub(el.getAttribute('aria-label') || ''),
           // placeholder/name help match input-targeted steps (empty visibleText).
           // Safe to send: secret fields are already excluded by isSecretInput().
           placeholder: stripTokens(el.getAttribute('placeholder') || ''),
@@ -95,6 +114,57 @@
       }
     } catch (_) {}
     return elements;
+  }
+
+  // ── Sensitive-region detection (for screenshot redaction) ───────────────────
+  // Returns device-pixel rectangles to BLACK OUT in the screenshot before it is
+  // sent to the model: password fields, credential-labelled fields, fields whose
+  // value looks like a token, and credential-labelled containers showing one.
+  // Coords are scaled by devicePixelRatio to match captureVisibleTab's output.
+  function findSensitiveRegions() {
+    if (!IS_TOP) return [];
+    const dpr = window.devicePixelRatio || 1;
+    const vw = window.innerWidth || document.documentElement.clientWidth;
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    const regions = [];
+    const add = (el) => {
+      try {
+        const r = el.getBoundingClientRect();
+        if (r.width < 2 || r.height < 2) return;
+        if (r.bottom <= 0 || r.right <= 0 || r.top >= vh || r.left >= vw) return; // off-screen
+        const pad = 3;
+        regions.push({
+          x: Math.max(0, (r.left - pad) * dpr),
+          y: Math.max(0, (r.top - pad) * dpr),
+          w: (r.width + pad * 2) * dpr,
+          h: (r.height + pad * 2) * dpr,
+        });
+      } catch (_) {}
+    };
+    try {
+      // 1) Inputs/textareas: password, credential-labelled, or token-valued
+      //    (covers the read-only field that shows a freshly generated token).
+      for (const el of document.querySelectorAll('input, textarea')) {
+        if (regions.length >= 60) break;
+        if (isSecretInput(el)) { add(el); continue; }
+        const v = el.value || '';
+        if (v && (TOKEN_TEST.test(v) || JWT_TEST.test(v))) add(el);
+      }
+      // 2) Credential-labelled containers that actually display a token-like value
+      //    (e.g. a generated token rendered in a <div>/<code>).
+      const SEL = 'code,[aria-label],[class*="token"],[class*="secret"],[class*="cred"],[data-testid]';
+      for (const el of document.querySelectorAll(SEL)) {
+        if (regions.length >= 60) break;
+        const ctx = (el.getAttribute('aria-label') || '') + ' ' +
+                    ((el.className && String(el.className)) || '') + ' ' +
+                    (el.getAttribute('data-testid') || '');
+        if (!SECRET_LABEL_RE.test(ctx)) continue;
+        let txt = '';
+        try { txt = el.innerText || el.textContent || ''; } catch (_) {}
+        if (TOKEN_TEST.test(txt) || JWT_TEST.test(txt)) add(el);
+      }
+    } catch (_) {}
+    return regions;
   }
 
   // ── Tip div ───────────────────────────────────────────────────────────────
@@ -220,6 +290,7 @@
       'a[href]', 'button', 'input', 'select', 'textarea',
       '[role="button"]', '[role="link"]', '[role="menuitem"]',
       '[role="tab"]', '[role="option"]', '[role="treeitem"]',
+      '[role="combobox"]',
     ].join(',');
     let nodes;
     try { nodes = document.querySelectorAll(SEL); } catch (_) { return null; }
@@ -230,11 +301,32 @@
         try { if (el.closest('.driver-popover') || el.id === '__sg_tip') continue; } catch (_) {}
         const r = el.getBoundingClientRect();
         if (r.width < 1 || r.height < 1) continue;
+        // Skip elements rendered off-screen (CSS left:-9999px portals, hidden combobox
+        // widgets, etc.) — they pass visibility checks but are never user-visible.
+        if (isOffScreen(el)) continue;
+        // Skip elements obscured by a modal/dialog overlay. The element that OPENED
+        // a dialog is still in the DOM at the same position, now covered by the overlay.
+        // elementFromPoint at its centre returns the overlay content, not the element.
+        try {
+          const cx = r.left + r.width / 2;
+          const cy = r.top + r.height / 2;
+          const top = document.elementFromPoint(cx, cy);
+          if (top && top !== el && !el.contains(top) && !top.contains(el)) continue;
+        } catch (_) {}
         const st = window.getComputedStyle(el);
         if (!st || st.display === 'none' || st.visibility === 'hidden' || st.opacity === '0') continue;
         // innerText respects CSS visibility; fall back to textContent then aria-label.
+        // For <select>, innerText returns all option texts — use the selected option instead.
         let vt = '';
-        try { vt = el.innerText || ''; } catch (_) {}
+        try {
+          if (el.tagName === 'SELECT') {
+            vt = (el.selectedOptions && el.selectedOptions[0] ? el.selectedOptions[0].text : '') ||
+                 (el.options && el.selectedIndex >= 0 ? (el.options[el.selectedIndex] || {}).text || '' : '') ||
+                 el.value || '';
+          } else {
+            vt = el.innerText || '';
+          }
+        } catch (_) {}
         if (!vt) vt = el.textContent || '';
         if (!vt) vt = el.getAttribute('aria-label') || '';
         vt = vt.replace(/\s+/g, ' ').trim().toLowerCase();
@@ -294,7 +386,13 @@
   }
 
   // ── Message listener ──────────────────────────────────────────────────────
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type === 'GET_SENSITIVE_REGIONS') {
+      // Background asks (frameId 0) for regions to black out before sending the
+      // screenshot. Synchronous DOM read, but return true to keep the channel open.
+      try { sendResponse(findSensitiveRegions()); } catch (_) { sendResponse([]); }
+      return true;
+    }
     if (msg.type === 'HIGHLIGHT') {
       clearTip();
       // Prefer the precise label match (the leaf link/button — avoids highlighting
@@ -305,7 +403,25 @@
         el = findByText(msg.targetText);
       }
       if ((!el || !document.contains(el)) && msg.sgId !== null && msg.sgId !== undefined && msg.sgId !== '') {
-        el = document.querySelector('[data-sg-id="' + msg.sgId + '"]');
+        const candidate = document.querySelector('[data-sg-id="' + msg.sgId + '"]');
+        if (candidate && document.contains(candidate)) {
+          // Guard against stale sgIds: only use this element if its visible text
+          // roughly matches the targetText. When a dialog opens after the last scan,
+          // the sgId may point to a completely different pre-dialog element.
+          if (!msg.targetText) {
+            el = candidate;
+          } else {
+            const needle = msg.targetText.toLowerCase();
+            let ct = '';
+            try { ct = candidate.innerText || ''; } catch (_) {}
+            if (!ct) ct = candidate.textContent || '';
+            if (!ct) ct = candidate.getAttribute('aria-label') || '';
+            ct = ct.replace(/\s+/g, ' ').trim().toLowerCase();
+            if (ct === needle || ct.includes(needle) || (ct.length >= 3 && needle.includes(ct))) {
+              el = candidate;
+            }
+          }
+        }
       }
       try { console.log('[ScreenGuide] HIGHLIGHT sgId=' + msg.sgId + ' targetText="' + (msg.targetText || '') + '" resolved=' + !!el); } catch (_) {}
       if (el && document.contains(el)) {

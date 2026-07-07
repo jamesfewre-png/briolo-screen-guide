@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "AI Screen Guide",
-  "version": "0.5.5",
-  "description": "Proactive AI onboarding guide — watches the page and points you to the next action",
+  "version": "0.7.0",
+  "description": "Proactive AI guide — watches the page and points you to the next action for any goal",
   "permissions": ["sidePanel", "tabs", "storage", "activeTab"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js" },
@@ -15,5 +15,8 @@
     "run_at": "document_idle"
   }],
   "side_panel": { "default_path": "panel.html" },
-  "web_accessible_resources": [{ "resources": ["vendor/*"], "matches": ["<all_urls>"] }]
+  "web_accessible_resources": [{ "resources": ["vendor/*"], "matches": ["<all_urls>"] }],
+  "externally_connectable": {
+    "matches": ["https://briolo.io/*", "https://*.briolo.io/*", "http://localhost:3000/*"]
+  }
 }

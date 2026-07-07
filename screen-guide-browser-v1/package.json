@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "build": "node build.cjs",
-    "dev": "node build.cjs && echo 'Reload the extension in chrome://extensions'"
+    "dev": "node build.cjs && echo 'Reload the extension in chrome://extensions'",
+    "test": "node --test"
   },
   "dependencies": {
     "driver.js": "^1.4.0"

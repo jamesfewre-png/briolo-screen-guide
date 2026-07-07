@@ -1,1 +1,13 @@
 .vercel
+
+# Build output — dev builds write config.json with the API key / proxy secret.
+# NEVER commit this.
+dist/
+
+# Dependencies
+node_modules/
+
+# Secrets / local env
+.env
+.env.*
+!.env.example

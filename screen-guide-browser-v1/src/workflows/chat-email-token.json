@@ -1,0 +1,12 @@
+{
+  "id": "chat-email-token",
+  "name": "Connect chat & email sending (Resend or Chatbase)",
+  "objective": "Guide a non-technical business owner to create an API key for sending email or running a website chat robot. Default to Resend for email sending: from resend.com, sign in, open API Keys, create a new key named after their business, and reveal it ready to copy. If the goal is a website FAQ chatbot instead, adapt and guide them through chatbase.co (or tidio.com) to find and copy their API key. Read the live screen each step and adapt to whatever the app currently shows.",
+  "successCriteria": "An API key for the email or chat tool is revealed on screen ready to copy. Treat the task as complete once it is visible.",
+  "startUrl": "https://resend.com/api-keys",
+  "notes": "Never read or repeat the key's characters. The human performs every click and keystroke; only point and explain.",
+  "patterns": ["auto-reply", "faq-chatbot"],
+  "verify": { "providers": ["resend", "chatbase"], "detailLabel": "sending account" },
+  "deepLink": "connections/chat-email",
+  "finishLine": "This key lets your robot send emails or answer chat as your business."
+}
