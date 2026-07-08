@@ -43,12 +43,19 @@ module.exports = async function handler(req, res) {
     const to = (body && typeof body.to === 'string' && body.to.startsWith('/')) ? body.to : '/';
     const link = origin(req) + '/api/auth?token=' + token + '&to=' + encodeURIComponent(to);
 
-    if (env.RESEND_API_KEY) {
+    // Send real email ONLY when a key AND an explicitly verified sender are both
+    // configured. RESEND_API_KEY alone is NOT enough — it also powers the health
+    // canary's alert emails, and Resend's shared sandbox sender
+    // (onboarding@resend.dev) only ever delivers to the account owner. Falling
+    // back to it would mean a room of attendees staring at inboxes that never
+    // receive anything, with the server cheerfully reporting {"sent":true}.
+    // No verified sender => stay in dev-link mode, which visibly works.
+    if (env.RESEND_API_KEY && env.GUIDE_MAIL_FROM) {
       const r = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: env.GUIDE_MAIL_FROM || 'onboarding@resend.dev',
+          from: env.GUIDE_MAIL_FROM,
           to: email,
           subject: (env.GUIDE_BRAND || 'Screen Guide') + ' — your sign-in link',
           html: '<p>Click to sign in (valid 15 minutes):</p><p><a href="' + link + '">' + link + '</a></p>',
@@ -59,7 +66,7 @@ module.exports = async function handler(req, res) {
       return;
     }
     // Dev mode — no mail provider configured. Return the link directly.
-    res.status(200).json({ ok: true, sent: false, devLink: link, note: 'email not configured — dev sign-in link returned' });
+    res.status(200).json({ ok: true, sent: false, devLink: link, note: 'no verified sender configured (set GUIDE_MAIL_FROM) — dev sign-in link returned' });
     return;
   }
 
