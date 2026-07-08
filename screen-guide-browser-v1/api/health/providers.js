@@ -34,14 +34,24 @@ function cronAuthorized(req, env) {
   return false;
 }
 
+// Alerts use GUIDE_ALERT_FROM, deliberately SEPARATE from GUIDE_MAIL_FROM:
+// configuring operator alerts must never arm the attendee sign-in email path
+// (see api/auth.js). Prefer a verified sending domain — Resend's shared
+// onboarding@resend.dev sender only ever reaches the account owner.
+// Returns a result object so a self-test can prove the path actually works;
+// the cron path still treats failure as non-fatal.
 async function alertIfUnhealthy(env, unhealthy) {
-  if (!unhealthy.length || !env.RESEND_API_KEY || !env.GUIDE_ALERT_EMAIL) return;
+  if (!unhealthy.length) return { attempted: false, reason: 'nothing to report' };
+  if (!env.RESEND_API_KEY || !env.GUIDE_ALERT_EMAIL) {
+    return { attempted: false, reason: 'RESEND_API_KEY or GUIDE_ALERT_EMAIL not configured' };
+  }
+  const from = env.GUIDE_ALERT_FROM || env.GUIDE_MAIL_FROM || 'onboarding@resend.dev';
   try {
-    await fetch('https://api.resend.com/emails', {
+    const r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + env.RESEND_API_KEY, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: env.GUIDE_MAIL_FROM || 'onboarding@resend.dev',
+        from,
         to: env.GUIDE_ALERT_EMAIL,
         subject: '⚠️ AI Consult: ' + unhealthy.length + ' connection(s) need attention',
         html: '<p>The provider liveness canary found integrations that no longer behave as expected:</p><ul>' +
@@ -49,7 +59,15 @@ async function alertIfUnhealthy(env, unhealthy) {
           '</ul><p>These are api/_providers.js smoke tests responding in an unexpected way — likely an API version bump or a moved endpoint. Fix before the next cohort.</p>',
       }),
     });
-  } catch (_) { /* best-effort — the JSON response is the source of truth either way */ }
+    if (!r.ok) {
+      const detail = await r.text().catch(() => '');
+      return { attempted: true, sent: false, from, status: r.status, error: detail.slice(0, 200) };
+    }
+    const body = await r.json().catch(() => ({}));
+    return { attempted: true, sent: true, from, to: env.GUIDE_ALERT_EMAIL, id: body.id || null };
+  } catch (err) {
+    return { attempted: true, sent: false, from, error: (err && err.message) || 'send threw' };
+  }
 }
 
 module.exports = async function handler(req, res) {
@@ -88,11 +106,21 @@ module.exports = async function handler(req, res) {
   const unhealthy = report.filter(r => r.healthy === false);
   const overallHealthy = unhealthy.length === 0;
 
-  await alertIfUnhealthy(env, unhealthy);
+  // ?selftest=1 — prove the alerting path end to end without waiting for a real
+  // outage. Drives the SAME alertIfUnhealthy() the cron uses, with a synthetic
+  // finding, and reports exactly what Resend said. Auth-gated like everything here.
+  const selftest = req.query && (req.query.selftest === '1' || req.query.selftest === 'true');
+  const toAlert = selftest
+    ? [{ provider: 'canary-selftest', reason: 'synthetic finding — this is a TEST of the alert path, no integration is actually broken' }]
+    : unhealthy;
 
-  res.status(overallHealthy ? 200 : 503).json({
+  const alert = await alertIfUnhealthy(env, toAlert);
+
+  res.status(selftest ? 200 : (overallHealthy ? 200 : 503)).json({
     healthy: overallHealthy,
+    selftest: selftest || undefined,
     checkedAt: new Date().toISOString(),
+    alert,
     providers: report,
   });
 };
