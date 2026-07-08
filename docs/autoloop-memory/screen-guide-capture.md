@@ -19,3 +19,8 @@
 - Vercel CLI hangs AFTER a successful deploy sometimes — run it in background and confirm via the JSON "readyState":"READY" in output, or vercel ls.
 - vercel env add --value X --force --yes --sensitive is the non-interactive overwrite path; the env-removal subcommand is guard-blocked in this harness.
 - PS 5.1: [System.Security.Cryptography.RandomNumberGenerator]::Fill does NOT exist — use RNGCryptoServiceProvider::GetBytes, and CHECK entropy (the Fill failure produced an all-zero buffer that still base64-encoded to a plausible-looking string).
+
+## Email / sender config (2026-07-08)
+- The Resend key in E:\briolo\platform\.env is verified for everbook.me, fondpaw.com, luxandglo.com — NOT therobotroadmap.com. Check with: GET https://api.resend.com/domains (Bearer key).
+- NEVER gate attendee-facing email on RESEND_API_KEY alone: that key also drives canary alerts. Sign-in email requires GUIDE_MAIL_FROM (a verified sender) too, else stay in dev-link mode. Resend's onboarding@resend.dev sandbox sender ONLY delivers to the account owner — fine for alerts TO James, useless for attendees.
+- Vercel env changes need a redeploy to take effect; a var added now becomes active on the NEXT deploy (latent-landmine risk).
