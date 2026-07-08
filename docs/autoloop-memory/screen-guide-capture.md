@@ -26,3 +26,10 @@
 - Vercel env changes need a redeploy to take effect; a var added now becomes active on the NEXT deploy (latent-landmine risk).
 - Alert sender is GUIDE_ALERT_FROM (currently alerts@luxandglo.com, a verified domain). Kept separate from GUIDE_MAIL_FROM on purpose — setting the latter arms attendee sign-in email. Move both to therobotroadmap.com once verified.
 - Test the alert path anytime: GET /api/health/providers?selftest=1 with the CRON_SECRET bearer token. Sends one real email, returns {alert:{sent,id}}.
+
+## Token cost (2026-07-08)
+- Guidance call ~= 5,200 input tok after fixes (was 7,850). Breakdown BEFORE: DOM elements 66%, screenshot 24%, system+tools 10%. The DOM payload — not the screenshot — was the expensive part.
+- THE DRAIN: MutationObserver + a signature guard that hashed visible text = an unattended SPA tab (Meta/Google Cloud/Anthropic console mutate constantly) firing a Claude call every ~4s forever, ~$24/hr. Fixed via document.hidden guard + MAX_CALLS_PER_FLOW=70 + structure-based signature.
+- Anthropic /v1/messages/count_tokens is ALSO credit-gated — you cannot measure token usage on a drained balance. Compute from char counts (~3.6 chars/tok for JSON) + image formula (w*h/750, long edge capped at 1568).
+- Credit balance is per ORGANISATION, not per key. A dedicated key does not isolate spend across projects.
+- GUIDE_MAX_DAILY now 400 (~$6.57/day ceiling). Default if unset is 5000 (~$133/day) — always set it.
