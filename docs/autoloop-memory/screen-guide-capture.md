@@ -12,3 +12,10 @@
 - Extension service worker fetches to the dashboard are CROSS-ORIGIN + credentialed. Endpoints it touches (/api/me, /api/connections/:slug/status) MUST echo the chrome-extension:// origin and set Access-Control-Allow-Credentials: true. Missing CORS => fetch rejects => CHECK_SIGNIN falsely reports "not signed in" (looks like an auth bug, is a CORS bug).
 - Cal.com API v1 is RETIRED (410 Gone). Use https://api.cal.com/v2/me with Authorization: Bearer + cal-api-version header. Re-check other provider endpoints for the same rot.
 - The Anthropic key on the Vercel project can run out of credit: proxy returns 502 {"error":"claude 400", detail: "credit balance is too low"}. Panel then shows "could not reach Claude". Check billing before blaming config.
+
+## Canary + taxonomy round (2026-07-08, later)
+- Provider auth-rejection signals are NOT standardised: Meta = 400 + OAuthException/code 190; Resend = 400 validation_error "API key is invalid"; Chatbase = raw 500 "JSON object requested, multiple (or no) rows returned" (Supabase leak). Only Anthropic/OpenAI/Cal.com v2/Calendly/Google use clean 401/403. failReason() must sniff the BODY for ambiguous statuses.
+- The liveness canary (fake token -> expect token_rejected) at /api/health/providers runs daily 20:00 UTC via Vercel Cron; CRON_SECRET-gated; 503 + per-provider JSON when anything rots; emails GUIDE_ALERT_EMAIL only if RESEND_API_KEY set.
+- Vercel CLI hangs AFTER a successful deploy sometimes — run it in background and confirm via the JSON "readyState":"READY" in output, or vercel ls.
+- vercel env add --value X --force --yes --sensitive is the non-interactive overwrite path; the env-removal subcommand is guard-blocked in this harness.
+- PS 5.1: [System.Security.Cryptography.RandomNumberGenerator]::Fill does NOT exist — use RNGCryptoServiceProvider::GetBytes, and CHECK entropy (the Fill failure produced an all-zero buffer that still base64-encoded to a plausible-looking string).
