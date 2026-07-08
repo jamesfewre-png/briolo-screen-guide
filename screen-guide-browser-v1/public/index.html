@@ -1,11 +1,59 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Briolo Screen Guide API</title>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-</head>
-<body>
-<p>Briolo screen-guide backend. The guidance endpoint is <code>POST /api/analyze</code>.</p>
-</body>
-</html>
+<title>Sign in — Robot Roadmap</title>
+<style>
+  :root{--ink:#12172b;--amber:#ff8a34;--teal:#18b7ae;--muted:#5b6472;--line:#e4e7ec;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:"Segoe UI",Arial,sans-serif;background:#f6f7f9;color:var(--ink);display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:30px 28px;max-width:420px;width:100%;box-shadow:0 8px 28px rgba(18,23,43,.08);}
+  h1{font-size:22px;margin-bottom:4px;}
+  h1 .a{color:var(--amber);}
+  .sub{font-size:13.5px;color:var(--muted);margin-bottom:20px;line-height:1.5;}
+  label{font-size:12.5px;font-weight:600;display:block;margin-bottom:6px;}
+  input{width:100%;padding:11px 13px;border:1px solid #cdd3dd;border-radius:9px;font-size:14px;}
+  input:focus{outline:none;border-color:var(--amber);}
+  button{width:100%;margin-top:12px;padding:12px;border:none;border-radius:9px;background:var(--amber);color:#fff;font-size:15px;font-weight:700;cursor:pointer;}
+  button:hover{opacity:.9;}
+  .msg{margin-top:14px;font-size:13px;line-height:1.5;padding:10px 13px;border-radius:9px;display:none;}
+  .msg.ok{display:block;background:#e9f7ef;border:1px solid #bfe6cd;color:#0f7a37;}
+  .msg.err{display:block;background:#fdeeee;border:1px solid #f3c0c0;color:#a33;}
+  .msg a{word-break:break-all;color:#1c47b8;}
+  .signed{display:none;margin-top:14px;font-size:13.5px;background:#e9f7ef;border:1px solid #bfe6cd;border-radius:9px;padding:10px 13px;color:#0f7a37;}
+  .foot{margin-top:18px;font-size:11.5px;color:var(--muted);text-align:center;}
+</style></head><body>
+<div class="card">
+  <h1>Robot <span class="a">Roadmap</span></h1>
+  <p class="sub">Sign in to your dashboard — this is where your robot&apos;s connections live. Use the <b>same email you signed up with</b>, in <b>this browser</b>.</p>
+  <div class="signed" id="signed"></div>
+  <form id="f">
+    <label for="email">Your email</label>
+    <input id="email" type="email" placeholder="you@yourbusiness.com.au" required>
+    <button type="submit">Send my sign-in link</button>
+  </form>
+  <div class="msg" id="msg"></div>
+  <p class="foot">No passwords. We email you a link; clicking it signs this browser in.</p>
+</div>
+<script>
+const msg = document.getElementById('msg');
+fetch('/api/me').then(r => r.ok ? r.json() : null).then(j => {
+  if (j && j.email) {
+    const el = document.getElementById('signed');
+    el.style.display = 'block';
+    el.textContent = 'Already signed in as ' + j.email + ' — you can close this tab or open a connection page.';
+  }
+}).catch(() => {});
+document.getElementById('f').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  msg.className = 'msg'; msg.textContent = '';
+  const email = document.getElementById('email').value.trim();
+  try {
+    const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    const j = await r.json();
+    if (!r.ok) { msg.className = 'msg err'; msg.textContent = j.error || 'Something went wrong — try again.'; return; }
+    if (j.sent) { msg.className = 'msg ok'; msg.textContent = 'Check your email — your sign-in link is on its way (valid 15 minutes).'; }
+    else { msg.className = 'msg ok'; msg.innerHTML = 'Dev mode (no mail configured): <a href="' + j.devLink + '">click here to sign in</a>'; }
+  } catch (_) { msg.className = 'msg err'; msg.textContent = 'Could not reach the server.'; }
+});
+</script>
+</body></html>

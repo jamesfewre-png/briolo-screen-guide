@@ -1,0 +1,92 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Connection — Robot Roadmap</title>
+<style>
+  :root{--ink:#12172b;--amber:#ff8a34;--teal:#18b7ae;--muted:#5b6472;--line:#e4e7ec;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:"Segoe UI",Arial,sans-serif;background:#f6f7f9;color:var(--ink);display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px;}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:30px 28px;max-width:480px;width:100%;box-shadow:0 8px 28px rgba(18,23,43,.08);}
+  h1{font-size:20px;margin-bottom:4px;}
+  .sub{font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.5;}
+  .who{font-size:12px;color:var(--muted);margin-bottom:14px;}
+  label{font-size:12.5px;font-weight:600;display:block;margin:12px 0 6px;}
+  select,input{width:100%;padding:11px 13px;border:1px solid #cdd3dd;border-radius:9px;font-size:14px;background:#fff;}
+  input:focus,select:focus{outline:none;border-color:var(--amber);}
+  button{width:100%;margin-top:14px;padding:12px;border:none;border-radius:9px;background:var(--amber);color:#fff;font-size:15px;font-weight:700;cursor:pointer;}
+  button:disabled{opacity:.5;cursor:default;}
+  .msg{margin-top:14px;font-size:13.5px;line-height:1.5;padding:11px 13px;border-radius:9px;display:none;}
+  .msg.ok{display:block;background:#e9f7ef;border:1px solid #bfe6cd;color:#0f7a37;}
+  .msg.err{display:block;background:#fdeeee;border:1px solid #f3c0c0;color:#a33;}
+  .msg.wait{display:block;background:#fff8ec;border:1px solid #f3d9ad;color:#9a5a08;}
+  .gate{display:none;font-size:13.5px;background:#fff8ec;border:1px solid #f3d9ad;border-radius:9px;padding:11px 13px;color:#9a5a08;line-height:1.5;}
+  .gate a{color:#1c47b8;font-weight:700;}
+  .note{margin-top:14px;font-size:11.5px;color:var(--muted);line-height:1.5;}
+</style></head><body>
+<div class="card">
+  <h1 id="title">Connection</h1>
+  <p class="sub" id="subtitle">Paste the token you just created. It goes straight into your own vault — we check it works, and your guide shows the green tick.</p>
+  <div class="who" id="who"></div>
+  <div class="gate" id="gate">You&apos;re not signed in in this browser. <a href="/" id="signinLink">Sign in first</a>, then come back to this page.</div>
+  <div id="form">
+    <label for="provider">Which provider?</label>
+    <select id="provider"></select>
+    <label for="token">Paste your token</label>
+    <input id="token" type="password" autocomplete="off" placeholder="Paste it here — it never leaves your vault">
+    <button id="save">Save &amp; check it works</button>
+  </div>
+  <div class="msg" id="msg"></div>
+  <p class="note">We use your token once, immediately, for a read-only check that it works — then it sits encrypted at rest in your vault. It is never shown, logged or emailed.</p>
+</div>
+<script>
+const SLUGS = {
+  'meta':            { name: 'Facebook & Instagram (Meta)', providers: { 'meta': 'Meta (system-user token)' } },
+  'llm':             { name: 'Your AI brain key',           providers: { 'anthropic': 'Claude (Anthropic)', 'openai': 'OpenAI' } },
+  'booking':         { name: 'Booking calendar',            providers: { 'calcom': 'Cal.com', 'calendly': 'Calendly' } },
+  'google-business': { name: 'Google Business Profile',     providers: { 'google-business': 'Google Business Profile' } },
+  'chat-email':      { name: 'Chat & email sending',        providers: { 'resend': 'Resend (email)', 'chatbase': 'Chatbase (chatbot)' } },
+};
+const params = new URLSearchParams(location.search);
+const slug = params.get('slug') || location.pathname.split('/').pop();
+const cfg = SLUGS[slug];
+const msg = document.getElementById('msg');
+if (!cfg) {
+  document.getElementById('title').textContent = 'Unknown connection';
+  document.getElementById('form').style.display = 'none';
+} else {
+  document.getElementById('title').textContent = cfg.name;
+  const sel = document.getElementById('provider');
+  for (const [v, label] of Object.entries(cfg.providers)) {
+    const o = document.createElement('option'); o.value = v; o.textContent = label; sel.appendChild(o);
+  }
+  document.getElementById('signinLink').href = '/?to=' + encodeURIComponent('/connections/' + slug);
+}
+fetch('/api/me').then(r => r.ok ? r.json() : null).then(j => {
+  if (j && j.email) { document.getElementById('who').textContent = 'Signed in as ' + j.email; }
+  else { document.getElementById('gate').style.display = 'block'; document.getElementById('form').style.display = 'none'; }
+}).catch(() => {});
+document.getElementById('save').addEventListener('click', async () => {
+  const token = document.getElementById('token').value;
+  const provider = document.getElementById('provider').value;
+  if (!token || token.length < 8) { msg.className = 'msg err'; msg.textContent = 'Paste the whole token first.'; return; }
+  document.getElementById('save').disabled = true;
+  msg.className = 'msg wait'; msg.textContent = 'Checking the connection actually works…';
+  try {
+    const r = await fetch('/api/connections/' + slug, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, token }),
+    });
+    const j = await r.json();
+    if (j.status === 'verified') {
+      msg.className = 'msg ok';
+      msg.textContent = 'Verified — connected to ' + (j.detail || 'your account') + '. You can go back to your guide.';
+      document.getElementById('token').value = '';
+    } else {
+      msg.className = 'msg err';
+      msg.textContent = (j.reason || j.error || 'That token didn’t work.') + ' Your guide will help you mint a fresh one.';
+    }
+  } catch (_) { msg.className = 'msg err'; msg.textContent = 'Could not reach the server — try again.'; }
+  document.getElementById('save').disabled = false;
+});
+</script>
+</body></html>
