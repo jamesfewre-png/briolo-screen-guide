@@ -24,3 +24,5 @@
 - The Resend key in E:\briolo\platform\.env is verified for everbook.me, fondpaw.com, luxandglo.com — NOT therobotroadmap.com. Check with: GET https://api.resend.com/domains (Bearer key).
 - NEVER gate attendee-facing email on RESEND_API_KEY alone: that key also drives canary alerts. Sign-in email requires GUIDE_MAIL_FROM (a verified sender) too, else stay in dev-link mode. Resend's onboarding@resend.dev sandbox sender ONLY delivers to the account owner — fine for alerts TO James, useless for attendees.
 - Vercel env changes need a redeploy to take effect; a var added now becomes active on the NEXT deploy (latent-landmine risk).
+- Alert sender is GUIDE_ALERT_FROM (currently alerts@luxandglo.com, a verified domain). Kept separate from GUIDE_MAIL_FROM on purpose — setting the latter arms attendee sign-in email. Move both to therobotroadmap.com once verified.
+- Test the alert path anytime: GET /api/health/providers?selftest=1 with the CRON_SECRET bearer token. Sends one real email, returns {alert:{sent,id}}.
