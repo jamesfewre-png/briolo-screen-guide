@@ -1,4 +1,11 @@
 // Tiny KV for sessions / tokens / verification statuses.
+//
+// DEPLOYMENT NOTE: functions are pinned to syd1 (see vercel.json "regions").
+// The Upstash vault lives in ap-southeast-2 (Sydney) and the attendees are in
+// Perth, so Washington-DC functions (Vercel's iad1 default) put a ~250ms
+// Pacific crossing on every request AND every Redis op. Pinning to syd1
+// collapses both. The trade: the Claude proxy now hops Sydney->US, adding
+// ~200ms to a call that already takes 3-5s. Worth it.
 // Upstash Redis REST when configured (multi-instance safe); otherwise a
 // module-global Map — fine for local dev and demo, NOT for multi-instance prod.
 // Values are JSON. Keys are namespaced by the caller. TTL in seconds.

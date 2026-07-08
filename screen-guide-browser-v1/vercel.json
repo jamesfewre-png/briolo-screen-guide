@@ -1,7 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "echo 'no build — serverless functions only'",
+  "buildCommand": "echo 'no build - serverless functions only'",
   "outputDirectory": "public",
+  "regions": ["syd1"],
   "functions": {
     "api/analyze.js": { "maxDuration": 60 },
     "api/verify.js": { "maxDuration": 30 },
