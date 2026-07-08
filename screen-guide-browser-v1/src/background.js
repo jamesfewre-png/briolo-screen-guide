@@ -22,6 +22,7 @@ function freshSession(extra) {
     stuckCount: 0,        // "I'm Stuck" presses on the current flow (2 = flag)
     verifyDetail: '',     // human-recognizable detail returned by the smoke test
     verifyReason: '',     // plain-English reason when the smoke test failed
+    verifyKind: '',        // 'token_rejected' | 'provider_unreachable' | 'integration_broken'
     verifyNote: '',       // honest note when verification could not run
     intake: null,         // { business, job } the owner typed
   }, extra || {});
@@ -323,6 +324,7 @@ async function startFlowAt(idx) {
   state.verifyDetail = '';
   state.verifyNote = '';
   state.verifyReason = '';
+  state.verifyKind = '';
   state.history = [];
   state.lastGuidance = null;
   goal = null;
@@ -377,16 +379,48 @@ async function verifyCurrent() {
       flowDone();
       return;
     }
-    if (data && data.status === 'failed') { verifyFailed(typeof data.reason === 'string' ? data.reason.slice(0, 160) : ''); return; }
+    if (data && data.status === 'failed') {
+      verifyFailed(
+        typeof data.reason === 'string' ? data.reason.slice(0, 160) : '',
+        typeof data.kind === 'string' ? data.kind : 'token_rejected'
+      );
+      return;
+    }
     await new Promise(r => setTimeout(r, 2000)); // pending — poll again
   }
   state.verifyNote = 'Verification is taking longer than expected — it will finish in your dashboard.';
   flowDone();
 }
 
-// Spec: first failure -> guided regeneration; second -> flag the facilitator.
-function verifyFailed(reason) {
+// Reacts differently depending on WHOSE problem this is (see _providers.js):
+//   token_rejected       -> guided regeneration, up to 2 attempts then flag
+//   provider_unreachable -> the token may be fine; silently re-check once before
+//                           bothering the human, then flag if still down
+//   integration_broken   -> regenerating a token can never fix a stale integration
+//                           and it is never the owner's fault — flag immediately,
+//                           no wasted attempt
+function verifyFailed(reason, kind) {
   state.verifyReason = reason || 'the provider rejected this token';
+  state.verifyKind = kind || 'token_rejected';
+
+  if (state.verifyKind === 'integration_broken') {
+    state.phase = 'flagged';
+    activeTabThen(id => chrome.tabs.sendMessage(id, { type: 'CLEAR' }).catch(() => {}));
+    return;
+  }
+
+  if (state.verifyKind === 'provider_unreachable') {
+    state.verifyFails += 1;
+    if (state.verifyFails >= 2) {
+      state.phase = 'flagged';
+      activeTabThen(id => chrome.tabs.sendMessage(id, { type: 'CLEAR' }).catch(() => {}));
+      return;
+    }
+    state.phase = 'verifying';
+    setTimeout(() => verifyCurrent(), 4000);
+    return;
+  }
+
   state.verifyFails += 1;
   if (state.verifyFails >= 2) {
     state.phase = 'flagged';
@@ -586,6 +620,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       verifyDetail: state.verifyDetail || '',
       verifyNote: state.verifyNote || '',
       verifyReason: state.verifyReason || '',
+      verifyKind: state.verifyKind || '',
     });
     return true;
   }

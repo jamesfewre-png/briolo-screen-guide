@@ -5,8 +5,12 @@
   "functions": {
     "api/analyze.js": { "maxDuration": 60 },
     "api/verify.js": { "maxDuration": 30 },
-    "api/connections/[slug].js": { "maxDuration": 30 }
+    "api/connections/[slug].js": { "maxDuration": 30 },
+    "api/health/providers.js": { "maxDuration": 30 }
   },
+  "crons": [
+    { "path": "/api/health/providers", "schedule": "0 20 * * *" }
+  ],
   "rewrites": [
     { "source": "/api/connections/:slug/status", "destination": "/api/connections/:slug" },
     { "source": "/connections/:slug", "destination": "/connections.html?slug=:slug" }

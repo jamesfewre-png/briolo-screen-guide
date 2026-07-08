@@ -21,11 +21,54 @@ function cleanDetail(s, fallback) {
 }
 // Map a provider's HTTP rejection to a plain-English, actionable reason the
 // panel can show a non-technical owner (critic finding, iteration 2).
-function failReason(res) {
-  if (!res) return { ok: false, reason: 'could not reach the provider' };
-  if (res.status === 401 || res.status === 403) return { ok: false, reason: 'the provider rejected this key — it may be expired, revoked, or missing a character from the copy' };
-  if (res.status === 429) return { ok: false, reason: 'the provider is rate-limiting right now — wait a minute, then try the same token again' };
-  return { ok: false, reason: 'the provider returned an unexpected error (' + res.status + ')' };
+// kind classifies WHOSE problem this is, so the extension can react correctly:
+//   token_rejected      -> the pasted credential is bad; regenerating helps
+//   provider_unreachable -> transient (rate limit / 5xx / network); retry, don't regen
+//   integration_broken   -> OUR assumptions about this API are stale (moved/retired
+//                           endpoint, unexpected status); regenerating will NOT help,
+//                           and it is never the owner's fault
+//
+// LESSON (found by the health canary on its first real run, 2026-07-08): not
+// every provider signals "your credential is bad" via 401/403. Meta and Resend
+// both use 400; Chatbase's key lookup throws a raw 500 db error ("no rows
+// returned"). Treating status code alone as ground truth misclassified all
+// three as integration_broken — the exact "assume the shape instead of reading
+// it" bug this taxonomy exists to prevent, one layer up. So: read the body
+// before trusting the status code for anything outside the unambiguous cases.
+const AUTH_REASON = 'the provider rejected this key — it may be expired, revoked, or missing a character from the copy';
+
+function looksLikeAuthRejection(body) {
+  if (!body || typeof body !== 'object') return false;
+  const type = String((body.error && body.error.type) || body.type || body.name || '');
+  const code = (body.error && body.error.code);
+  if (/oauthexception/i.test(type)) return true;        // Meta: OAuthException
+  if (code === 190) return true;                          // Meta: invalid/expired access token
+  const blob = JSON.stringify(body).toLowerCase();
+  if (/validation_error/i.test(type) && /(api key|token)/.test(blob)) return true; // Resend
+  if (/(invalid|expired|revoked).{0,20}(api.?key|access.?token|token)/i.test(blob)) return true;
+  if (/(\(or no\)|no) rows? (were )?returned|0 rows returned|row.{0,15}not found/i.test(blob)) return true; // Chatbase key-lookup miss: "multiple (or no) rows returned"
+  return false;
+}
+
+async function failReason(res) {
+  if (!res) return { ok: false, kind: 'provider_unreachable', reason: 'could not reach the provider' };
+  if (res.status === 401 || res.status === 403) {
+    return { ok: false, kind: 'token_rejected', reason: AUTH_REASON };
+  }
+  if (res.status === 429) {
+    return { ok: false, kind: 'provider_unreachable', reason: 'the provider is rate-limiting right now — wait a minute, then try the same token again' };
+  }
+  // Ambiguous status — read the body before assuming OUR integration is what's
+  // broken; some providers only ever signal a bad credential this way.
+  let body = null;
+  try { body = await res.json(); } catch (_) { /* non-JSON body — fall through */ }
+  if (looksLikeAuthRejection(body)) {
+    return { ok: false, kind: 'token_rejected', reason: AUTH_REASON };
+  }
+  if (res.status >= 500) {
+    return { ok: false, kind: 'provider_unreachable', reason: 'the provider is having trouble on their end right now — we will try again shortly' };
+  }
+  return { ok: false, kind: 'integration_broken', reason: 'this connection needs an update on our side — it is not something you did wrong' };
 }
 // One read-only smoke test per provider. Each returns { ok, detail } or throws.
 const PROVIDERS = {

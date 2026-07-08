@@ -86,7 +86,7 @@ module.exports = async function handler(req, res) {
     outcome = await PROVIDERS[provider](token);
   } catch (err) {
     const timeout = err && err.name === 'AbortError';
-    outcome = { ok: false, reason: timeout ? 'the provider took too long to answer' : 'could not reach the provider' };
+    outcome = { ok: false, kind: 'provider_unreachable', reason: timeout ? 'the provider took too long to answer' : 'could not reach the provider' };
   }
 
   if (outcome && outcome.ok) {
@@ -97,6 +97,8 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  await store.kvSet(env, statusKey, { status: 'failed', reason: (outcome && outcome.reason) || 'the provider rejected this token', provider }, WEEK);
-  res.status(200).json({ ok: false, status: 'failed', reason: (outcome && outcome.reason) || 'the provider rejected this token' });
+  const kind = (outcome && outcome.kind) || 'integration_broken';
+  const reason = (outcome && outcome.reason) || 'the provider rejected this token';
+  await store.kvSet(env, statusKey, { status: 'failed', kind, reason, provider }, WEEK);
+  res.status(200).json({ ok: false, status: 'failed', kind, reason });
 };

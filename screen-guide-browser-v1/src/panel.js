@@ -185,8 +185,23 @@ function render(state) {
   if (phase === 'flagged') {
     showScreen('flag-screen');
     const sub = document.getElementById('flag-sub');
+    const title = document.getElementById('flag-title');
     const who = state.facilitatorName || 'Your facilitator';
-    if (sub) sub.textContent = who + ' will come to you. Nothing is broken — this one just needs a human eye.' + (state.verifyReason ? ' (Last check: ' + state.verifyReason + ')' : '');
+    // Messaging matches WHOSE problem this is — never blame the owner for
+    // something broken on our side, and never say "nothing is broken" when
+    // something genuinely is.
+    let msg;
+    if (state.verifyKind === 'integration_broken') {
+      if (title) title.textContent = 'Not your fault — hang tight';
+      msg = 'This connection needs an update on our side. ' + who + ' has been notified and will sort it — you didn’t do anything wrong.';
+    } else if (state.verifyKind === 'provider_unreachable') {
+      if (title) title.textContent = 'Their system is having a moment';
+      msg = who + ' will check and try again shortly — this usually clears up on its own.';
+    } else {
+      if (title) title.textContent = 'Keep your seat';
+      msg = who + ' will come to you. Nothing is broken — this one just needs a human eye.';
+    }
+    if (sub) sub.textContent = msg + (state.verifyReason ? ' (Last check: ' + state.verifyReason + ')' : '');
     return;
   }
 

@@ -229,3 +229,58 @@ test('dashboard verify: failed status triggers regeneration, second failure flag
   await env.send({ type: 'ATTESTED' }); // fail #2 -> flag mode
   assert.ok(await env.until(async () => (await env.getState()).phase === 'flagged'), 'second failure flags');
 });
+
+test('integration_broken: never regenerates, flags on the FIRST failure, never blames the owner', async () => {
+  let verifyCalls = 0;
+  const env = makeEnv({
+    config: { claudeApiKey: 'test-key', dashboardUrl: 'https://dash.test' },
+    fetchImpl: async (url) => {
+      if (String(url).startsWith('https://dash.test/api/connections/meta/status')) {
+        verifyCalls++;
+        return { ok: true, status: 200, json: async () => ({ status: 'failed', kind: 'integration_broken', reason: 'this connection needs an update on our side' }) };
+      }
+      throw new Error('unexpected fetch ' + url);
+    },
+  });
+  env.sandbox.self.analyzeWithClaude = async () => ({
+    reasoning: '', message: 'Token on screen', sgId: '', targetText: '',
+    confidence: 0.9, status: 'complete', tokenRevealed: true,
+  });
+  await env.send({ type: 'START_WORKFLOW', workflowId: 'meta-connect-assets' });
+  await env.send({ type: 'NEXT_STEP' });
+  assert.ok(await env.until(async () => (await env.getState()).phase === 'finish'), 'reaches finish');
+
+  await env.send({ type: 'ATTESTED' }); // a stale integration must NEVER trigger a regen attempt
+  assert.ok(await env.until(async () => (await env.getState()).phase === 'flagged'), 'flags immediately on first failure');
+  assert.strictEqual(verifyCalls, 1, 'no wasted retry — regenerating a token cannot fix a stale integration');
+  const s = await env.getState();
+  assert.strictEqual(s.verifyKind, 'integration_broken');
+  assert.match(s.verifyReason, /update on our side/);
+});
+
+test('provider_unreachable: silently retries the SAME token once before flagging', async () => {
+  let verifyCalls = 0;
+  const env = makeEnv({
+    config: { claudeApiKey: 'test-key', dashboardUrl: 'https://dash.test' },
+    fetchImpl: async (url) => {
+      if (String(url).startsWith('https://dash.test/api/connections/meta/status')) {
+        verifyCalls++;
+        return { ok: true, status: 200, json: async () => ({ status: 'failed', kind: 'provider_unreachable', reason: 'the provider is having trouble on their end right now' }) };
+      }
+      throw new Error('unexpected fetch ' + url);
+    },
+  });
+  env.sandbox.self.analyzeWithClaude = async () => ({
+    reasoning: '', message: 'Token on screen', sgId: '', targetText: '',
+    confidence: 0.9, status: 'complete', tokenRevealed: true,
+  });
+  await env.send({ type: 'START_WORKFLOW', workflowId: 'meta-connect-assets' });
+  await env.send({ type: 'NEXT_STEP' });
+  assert.ok(await env.until(async () => (await env.getState()).phase === 'finish'), 'reaches finish');
+
+  await env.send({ type: 'ATTESTED' }); // fail #1 -> silent re-check, NOT a regen guide (the token may be fine)
+  assert.ok(await env.until(async () => verifyCalls >= 2, 4500), 'auto-retries the same token without asking the owner to do anything');
+  assert.ok(await env.until(async () => (await env.getState()).phase === 'flagged', 3000), 'flags after the retry also fails');
+  const s = await env.getState();
+  assert.strictEqual(s.verifyKind, 'provider_unreachable');
+});
