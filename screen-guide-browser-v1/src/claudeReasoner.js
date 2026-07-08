@@ -200,10 +200,10 @@ async function analyzeWithClaude({ goal, recentActions, elements, screenshotData
     },
     currentUrl: currentUrl || '',
     recentActions: (recentActions || []).slice(-6),
-    elements: (elements || []).slice(0, 90).map(el => ({
+    elements: (elements || []).slice(0, 40).map(el => ({
       sgId: String(el.sgId),
       tag: el.tag,
-      text: (el.visibleText || '').slice(0, 100),
+      text: (el.visibleText || '').slice(0, 60),
       aria: (el.ariaLabel || '').slice(0, 80),
       placeholder: (el.placeholder || '').slice(0, 60),
       name: (el.name || '').slice(0, 40)
@@ -224,8 +224,8 @@ async function analyzeWithClaude({ goal, recentActions, elements, screenshotData
   const body = {
     model: CLAUDE_MODEL,
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    tools: [GUIDANCE_TOOL],
+    system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+    tools: [Object.assign({}, GUIDANCE_TOOL, { cache_control: { type: 'ephemeral' } })],
     tool_choice: { type: 'tool', name: 'provide_guidance' },
     messages: [{ role: 'user', content }]
   };

@@ -218,11 +218,14 @@ module.exports = async function handler(req, res) {
     },
     currentUrl: currentUrl || '',
     recentActions: (recentActions || []).slice(-6),
-    elements: (elements || []).slice(0, 90).map(el => ({
+    // COST: the DOM payload was 66% of every call's input tokens (90 els x 100
+    // chars ~= 5,550 tok). 40 x 60 roughly halves it with negligible guidance
+    // loss — Claude also sees the screenshot, and the ring targets by sgId.
+    elements: (elements || []).slice(0, 40).map(el => ({
       sgId: String(el.sgId),
       tag: el.tag,
-      text: (el.visibleText || el.text || '').slice(0, 100),
-      aria: (el.ariaLabel || el.aria || '').slice(0, 80),
+      text: (el.visibleText || el.text || '').slice(0, 60),
+      aria: (el.ariaLabel || el.aria || '').slice(0, 50),
       placeholder: (el.placeholder || '').slice(0, 60),
       name: (el.name || '').slice(0, 40)
     }))
@@ -247,8 +250,10 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         model: CLAUDE_MODEL,
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
-        tools: [GUIDANCE_TOOL],
+        // Prompt caching: the system prompt and tool schema are identical on
+        // every call. Marking them cacheable makes cache hits ~90% cheaper.
+        system: [{ type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
+        tools: [Object.assign({}, GUIDANCE_TOOL, { cache_control: { type: 'ephemeral' } })],
         tool_choice: { type: 'tool', name: 'provide_guidance' },
         messages: [{ role: 'user', content }]
       }),

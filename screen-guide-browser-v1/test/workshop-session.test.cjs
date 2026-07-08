@@ -284,3 +284,41 @@ test('provider_unreachable: silently retries the SAME token once before flagging
   const s = await env.getState();
   assert.strictEqual(s.verifyKind, 'provider_unreachable');
 });
+
+test('cost guard: guidance calls stop at the per-flow ceiling until a human resumes', async () => {
+  let claudeCalls = 0;
+  const env = makeEnv();
+  // A page that never satisfies the goal AND mutates every cycle: the exact
+  // runaway shape (SPA dashboards) that drained a real API key.
+  env.sandbox.self.analyzeWithClaude = async () => {
+    claudeCalls++;
+    return { reasoning: '', message: 'keep looking ' + claudeCalls, sgId: '', targetText: '',
+      confidence: 0.3, status: 'guiding', tokenRevealed: false };
+  };
+  await env.send({ type: 'START_WORKFLOW', workflowId: 'meta-connect-assets' });
+  await env.until(async () => (await env.getState()).goalName.length > 0);
+
+  // Drive it past the ceiling. evaluate() is async and guarded against
+  // concurrent in-flight calls, so yield between nudges rather than hammering.
+  for (let i = 0; i < 300; i++) {
+    if ((await env.getState()).budgetPaused) break;
+    await env.send({ type: 'NEXT_STEP' });
+    await new Promise(r => setTimeout(r, 5));
+  }
+
+  const s = await env.getState();
+  assert.ok(s.budgetPaused, 'budget pause engaged');
+  assert.ok(claudeCalls <= s.maxCalls, `spend capped: ${claudeCalls} calls <= ceiling ${s.maxCalls}`);
+  assert.match(s.message, /Paused/i, 'the human is told why');
+
+  // Further nudges must NOT spend.
+  const before = claudeCalls;
+  for (let i = 0; i < 10; i++) await env.send({ type: 'NEXT_STEP' });
+  assert.strictEqual(claudeCalls, before, 'no spend while paused');
+
+  // Only an explicit human resume re-opens the budget.
+  await env.send({ type: 'RESUME_BUDGET' });
+  assert.ok(await env.until(async () => claudeCalls > before, 3000), 'guidance resumes after human consent');
+  assert.ok(claudeCalls > before, 'resume re-enables guidance');
+  assert.strictEqual((await env.getState()).budgetPaused, false);
+});

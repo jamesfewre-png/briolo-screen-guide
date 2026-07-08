@@ -23,6 +23,8 @@ function freshSession(extra) {
     verifyDetail: '',     // human-recognizable detail returned by the smoke test
     verifyReason: '',     // plain-English reason when the smoke test failed
     verifyKind: '',        // 'token_rejected' | 'provider_unreachable' | 'integration_broken'
+    callCount: 0,          // guidance calls made on the CURRENT flow (cost ceiling)
+    budgetPaused: false,   // true once MAX_CALLS_PER_FLOW is hit; needs a human nudge
     verifyNote: '',       // honest note when verification could not run
     intake: null,         // { business, job } the owner typed
   }, extra || {});
@@ -45,6 +47,11 @@ const pendingRerun = {}; // tabId → boolean (a re-eval was requested while one
 const evalTimers = {};   // tabId → debounce timer
 
 // ── Constants ─────────────────────────────────────────────────────────────────
+// COST GUARD: a hard ceiling on guidance calls per flow. At ~$0.03/call a stuck
+// or looping page could otherwise run indefinitely. A real flow needs 20-40
+// calls; 70 is generous. On hitting it we stop calling Claude and ask the human
+// whether to keep going — spend never continues without a deliberate click.
+const MAX_CALLS_PER_FLOW = 70;
 const CLAUDE_TIMEOUT_MS = 22000;
 const EVAL_DEBOUNCE_MS = 700;   // let the page settle before re-evaluating
 const POST_ACTION_MS = 1000;    // after the user acts, wait for the page to react
@@ -107,9 +114,15 @@ loadConfig();
 loadInstallId();
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────
+// COST GUARD: signature must key on STRUCTURE, not on volatile text. Hashing
+// visible text meant a ticking counter or a refreshed timestamp looked like a
+// new page and triggered a fresh Claude call. Use stable identity instead:
+// element ids, tags, and aria labels — which change when the page really changes.
 function pageSignature(url, elements) {
-  const texts = (elements || []).slice(0, 40).map(e => e.visibleText || '').join('|');
-  return (url || '') + '::' + ((elements && elements.length) || 0) + '::' + texts.slice(0, 600);
+  const stable = (elements || []).slice(0, 40)
+    .map(e => (e.sgId || '') + ':' + (e.tag || '') + ':' + ((e.ariaLabel || e.aria || '').slice(0, 24)))
+    .join('|');
+  return (url || '') + '::' + ((elements && elements.length) || 0) + '::' + stable.slice(0, 600);
 }
 
 function captureScreenshot(windowId) {
@@ -217,8 +230,24 @@ async function evaluate(tabId, opts) {
   try { const tab = await chrome.tabs.get(tabId); windowId = tab.windowId; active = tab.active; } catch (_) {}
   if (!active) return;
 
+  // COST GUARD: refuse to spend past the per-flow ceiling until a human says go.
+  if (state.callCount >= MAX_CALLS_PER_FLOW) {
+    if (!state.budgetPaused) {
+      state.budgetPaused = true;
+      state.thinking = false;
+      state.lastGuidance = {
+        message: 'Paused — this step is taking a lot of tries. Tap "Keep going" or grab your facilitator.',
+        reasoning: 'Guidance call budget for this connection was reached (' + MAX_CALLS_PER_FLOW + ' calls).',
+        sgId: '', status: 'blocked', confidence: 0,
+      };
+      sendGuidance(tabId, state.lastGuidance);
+    }
+    return;
+  }
+
   pendingAi[tabId] = true;
   state.thinking = true;
+  state.callCount += 1;
   lastSig[tabId] = sig;
 
   const screenshotDataUrl = await captureRedactedScreenshot(tabId, windowId);
@@ -325,6 +354,8 @@ async function startFlowAt(idx) {
   state.verifyNote = '';
   state.verifyReason = '';
   state.verifyKind = '';
+  state.callCount = 0;
+  state.budgetPaused = false;
   state.history = [];
   state.lastGuidance = null;
   goal = null;
@@ -589,6 +620,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
+  // Human explicitly authorises more spend on this flow.
+  if (msg.type === 'RESUME_BUDGET') {
+    state.budgetPaused = false;
+    state.callCount = 0;
+    activeTabThen(id => { lastSig[id] = ''; evaluate(id, { force: true }); });
+    sendResponse({ ok: true });
+    return true;
+  }
+
   if (msg.type === 'STOP') {
     state.enabled = false;
     activeTabThen(id => chrome.tabs.sendMessage(id, { type: 'CLEAR' }).catch(() => {}));
@@ -621,6 +661,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       verifyNote: state.verifyNote || '',
       verifyReason: state.verifyReason || '',
       verifyKind: state.verifyKind || '',
+      callCount: state.callCount || 0,
+      maxCalls: MAX_CALLS_PER_FLOW,
+      budgetPaused: !!state.budgetPaused,
     });
     return true;
   }

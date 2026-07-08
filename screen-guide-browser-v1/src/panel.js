@@ -228,6 +228,8 @@ function render(state) {
   }
   const hint = document.getElementById('ai-hint');
   if (hint) hint.style.display = state.hasApiKey ? 'none' : '';
+  const rb = document.getElementById('btn-resume-budget');
+  if (rb) rb.style.display = state.budgetPaused ? '' : 'none';
   const vhint = document.getElementById('verify-hint');
   if (vhint) {
     if (state.verifyReason) {
@@ -363,6 +365,13 @@ document.getElementById('btn-restart').addEventListener('click', async () => {
   lastStateJson = '';
   lastPlanSig = '';
   unticked.clear();
+  await refresh();
+});
+
+document.getElementById('btn-resume-budget').addEventListener('click', async () => {
+  lastStateJson = '';
+  setStatus('status-msg', 'Carrying on…', 2000);
+  await send({ type: 'RESUME_BUDGET' });
   await refresh();
 });
 

@@ -467,7 +467,12 @@
 
   // ── Re-scan on DOM changes (debounced, top frame only) ─────────────────────
   let debounce = null;
-  const mo = new MutationObserver(() => {
+  // COST GUARD: a hidden tab must never drive Claude calls. SPA dashboards (Meta,
+// Google Cloud, the Anthropic console) mutate their DOM continuously — live
+// counters, timestamps, background refreshes — so an unattended tab used to
+// trigger a fresh ~$0.03 guidance call every few seconds, indefinitely.
+const mo = new MutationObserver(() => {
+  if (document.hidden) return;
     clearTimeout(debounce);
     debounce = setTimeout(sendState, 400);
   });
