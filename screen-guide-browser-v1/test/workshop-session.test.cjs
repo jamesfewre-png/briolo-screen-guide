@@ -206,7 +206,7 @@ test('dashboard verify: failed status triggers regeneration, second failure flag
     fetchImpl: async (url) => {
       if (String(url).startsWith('https://dash.test/api/connections/meta/status')) {
         verifyCalls++;
-        return { ok: true, status: 200, json: async () => ({ status: 'failed' }) };
+        return { ok: true, status: 200, json: async () => ({ status: 'failed', reason: 'test-reason: key expired or miscopied' }) };
       }
       throw new Error('unexpected fetch ' + url);
     },
@@ -225,6 +225,7 @@ test('dashboard verify: failed status triggers regeneration, second failure flag
   await env.send({ type: 'ATTESTED' });
   assert.ok(await env.until(async () => (await env.getState()).phase === 'finish'), 'regen re-guides back to the finish line');
   assert.strictEqual(verifyCalls, 1, 'exactly one smoke test ran');
+  assert.match((await env.getState()).verifyReason, /key expired/, 'actionable reason exposed to the panel');
   await env.send({ type: 'ATTESTED' }); // fail #2 -> flag mode
   assert.ok(await env.until(async () => (await env.getState()).phase === 'flagged'), 'second failure flags');
 });

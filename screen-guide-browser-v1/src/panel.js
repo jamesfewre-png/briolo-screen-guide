@@ -186,7 +186,7 @@ function render(state) {
     showScreen('flag-screen');
     const sub = document.getElementById('flag-sub');
     const who = state.facilitatorName || 'Your facilitator';
-    if (sub) sub.textContent = who + ' will come to you. Nothing is broken — this one just needs a human eye.';
+    if (sub) sub.textContent = who + ' will come to you. Nothing is broken — this one just needs a human eye.' + (state.verifyReason ? ' (Last check: ' + state.verifyReason + ')' : '');
     return;
   }
 
@@ -213,6 +213,13 @@ function render(state) {
   }
   const hint = document.getElementById('ai-hint');
   if (hint) hint.style.display = state.hasApiKey ? 'none' : '';
+  const vhint = document.getElementById('verify-hint');
+  if (vhint) {
+    if (state.verifyReason) {
+      vhint.style.display = '';
+      vhint.textContent = 'Heads up: the last check failed — ' + state.verifyReason + '. Let’s mint a fresh one.';
+    } else vhint.style.display = 'none';
+  }
   clearStatusIfMine();
 }
 

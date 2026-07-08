@@ -21,6 +21,7 @@ function freshSession(extra) {
     verifyFails: 0,       // smoke-test failures for the CURRENT flow (1 = regen, 2 = flag)
     stuckCount: 0,        // "I'm Stuck" presses on the current flow (2 = flag)
     verifyDetail: '',     // human-recognizable detail returned by the smoke test
+    verifyReason: '',     // plain-English reason when the smoke test failed
     verifyNote: '',       // honest note when verification could not run
     intake: null,         // { business, job } the owner typed
   }, extra || {});
@@ -321,6 +322,7 @@ async function startFlowAt(idx) {
   state.stuckCount = 0;
   state.verifyDetail = '';
   state.verifyNote = '';
+  state.verifyReason = '';
   state.history = [];
   state.lastGuidance = null;
   goal = null;
@@ -375,7 +377,7 @@ async function verifyCurrent() {
       flowDone();
       return;
     }
-    if (data && data.status === 'failed') { verifyFailed(); return; }
+    if (data && data.status === 'failed') { verifyFailed(typeof data.reason === 'string' ? data.reason.slice(0, 160) : ''); return; }
     await new Promise(r => setTimeout(r, 2000)); // pending — poll again
   }
   state.verifyNote = 'Verification is taking longer than expected — it will finish in your dashboard.';
@@ -383,7 +385,8 @@ async function verifyCurrent() {
 }
 
 // Spec: first failure -> guided regeneration; second -> flag the facilitator.
-function verifyFailed() {
+function verifyFailed(reason) {
+  state.verifyReason = reason || 'the provider rejected this token';
   state.verifyFails += 1;
   if (state.verifyFails >= 2) {
     state.phase = 'flagged';
@@ -391,7 +394,7 @@ function verifyFailed() {
     return;
   }
   state.phase = 'running';
-  state.history.push('The pasted token failed verification. Guide the user to generate a FRESH token and copy it again — tokens sometimes get revoked or miscopied. Stay calm and reassuring; the system takes the blame, never the user.');
+  state.history.push('The pasted token failed verification (' + state.verifyReason + '). Guide the user to generate a FRESH token and copy it again. Stay calm and reassuring; the system takes the blame, never the user.');
   activeTabThen(id => { lastSig[id] = ''; evaluate(id, { force: true }); });
 }
 
@@ -582,6 +585,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       finishLine: (goal && goal.finishLine) || '',
       verifyDetail: state.verifyDetail || '',
       verifyNote: state.verifyNote || '',
+      verifyReason: state.verifyReason || '',
     });
     return true;
   }

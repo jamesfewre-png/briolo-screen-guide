@@ -90,7 +90,7 @@ module.exports = async function handler(req, res) {
   try {
     const result = await fn(token);
     if (result && result.ok) { res.status(200).json({ ok: true, detail: result.detail || '' }); return; }
-    res.status(200).json({ ok: false, reason: 'the provider rejected this token' });
+    res.status(200).json({ ok: false, reason: (result && result.reason) || 'the provider rejected this token' });
   } catch (err) {
     const timeout = err && err.name === 'AbortError';
     res.status(200).json({ ok: false, reason: timeout ? 'the provider took too long to answer' : 'could not reach the provider' });
