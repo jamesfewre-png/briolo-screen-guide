@@ -6,6 +6,19 @@
 const sess = require('../_session.js');
 const store = require('../_store.js');
 const { PROVIDERS } = require('../_providers.js');
+const sec = require('../_security.js');
+
+// Credentialed cross-origin GETs from the extension need an explicit origin echo
+// plus Allow-Credentials (never '*'), or the fetch rejects and verifyCurrent()
+// falls to the "could not reach dashboard" path.
+function cors(req, res) {
+  const allowOrigin = sec.resolveCorsOrigin(req.headers.origin, sec.parseAllowedOrigins(process.env));
+  if (allowOrigin) {
+    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Vary', 'Origin');
+  }
+}
 
 const SLUGS = {
   'meta': ['meta'],
@@ -29,6 +42,13 @@ async function readBody(req) {
 module.exports = async function handler(req, res) {
   const env = process.env;
   sess.noStore(res);
+  cors(req, res);
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.status(204).end();
+    return;
+  }
 
   const s = await sess.getSession(req, env);
   const slug = String((req.query && req.query.slug) || '');

@@ -54,10 +54,21 @@ const PROVIDERS = {
     return r.ok ? { ok: true, detail: 'your OpenAI key (active)' } : failReason(r);
   },
   async calcom(token) {
-    const r = await timedFetch('https://api.cal.com/v1/event-types?apiKey=' + encodeURIComponent(token));
-    if (!r.ok) return failReason(r);
-    const j = await r.json();
-    const t = j && j.event_types && j.event_types[0] && j.event_types[0].title;
+    // Cal.com API v1 was retired (returns 410 Gone). Use v2 (Bearer auth);
+    // fall back to v1 only if v2 answers with a non-auth error.
+    const r = await timedFetch('https://api.cal.com/v2/me', {
+      headers: { Authorization: 'Bearer ' + token, 'cal-api-version': '2024-06-14' },
+    });
+    if (r.ok) {
+      const j = await r.json();
+      const d = (j && j.data) || {};
+      return { ok: true, detail: cleanDetail(d.name || d.username || d.email, 'your Cal.com account') };
+    }
+    if (r.status === 401 || r.status === 403 || r.status === 429) return failReason(r);
+    const r1 = await timedFetch('https://api.cal.com/v1/event-types?apiKey=' + encodeURIComponent(token));
+    if (!r1.ok) return failReason(r);
+    const j1 = await r1.json();
+    const t = j1 && j1.event_types && j1.event_types[0] && j1.event_types[0].title;
     return { ok: true, detail: cleanDetail(t, 'your Cal.com account') };
   },
   async calendly(token) {
